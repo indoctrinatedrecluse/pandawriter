@@ -9,6 +9,7 @@
 html, body, #app { min-width: 320px; min-height: 100%; margin: 0; }
 button { font: inherit; }
 button:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+.development-error { max-width: 900px; margin: 48px auto; padding: 28px; border: 1px solid #f27578; border-radius: 12px; color: #ffe9ea; background: #301b22; font-family: ui-monospace, Consolas, monospace; }.development-error h1 { margin-top: 0; font-family: 'DM Sans', sans-serif; }.development-error pre { overflow: auto; padding: 16px; border-radius: 8px; white-space: pre-wrap; background: #181116; }
 
 .app-shell { min-height: 100vh; transition: background .35s ease, color .35s ease; }
 .topbar { height: 68px; display: flex; align-items: center; gap: 24px; padding: 0 32px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 86%, transparent); backdrop-filter: blur(18px); }

@@ -7,7 +7,9 @@
   import Underline from '@tiptap/extension-underline'
   import { TextStyle } from '@tiptap/extension-text-style'
   import Color from '@tiptap/extension-color'
-  import { LoadDraft, SaveDraft } from '../wailsjs/go/main/App'
+  import { LoadDraft, SaveDraft, OpenFile, SaveFile, SaveFileAs } from '../wailsjs/go/main/App'
+  import { logDebug, logError, logInfo } from './logger'
+  import { EventsOn } from '../wailsjs/runtime/runtime'
 
   type Theme = {
     id: string
@@ -19,6 +21,14 @@
     id: string
     name: string
     sample: string
+  }
+
+  type Draft = {
+    exists: boolean
+    content: string
+    theme: string
+    font: string
+    updatedAt: string
   }
 
   const themes: Theme[] = [
@@ -45,6 +55,7 @@
   let isReadyToPersist = false
   let contentVersion = 0
   let saveTimer: ReturnType<typeof setTimeout> | undefined
+  let currentPath: string | null = null
 
   const starterContent = `
     <h1>Untitled story</h1>
@@ -64,42 +75,120 @@
     contentVersion += 1
     isSaved = false
     saveError = ''
-    queueSave()
+    if (!currentPath) {
+      queueAutoSave()
+    }
   }
 
-  function queueSave() {
+  function queueAutoSave() {
     if (saveTimer) window.clearTimeout(saveTimer)
-    saveTimer = window.setTimeout(() => void saveDraft(), 650)
+    saveTimer = window.setTimeout(() => autoSaveLocalDraft(), 650)
   }
 
-  async function saveDraft() {
-    if (!editor || !isReadyToPersist) return
+  function autoSaveLocalDraft() {
+    if (saveTimer) window.clearTimeout(saveTimer)
+    void (async () => {
+      if (!editor || !isReadyToPersist) return
 
-    const versionBeingSaved = contentVersion
+      const versionBeingSaved = contentVersion
+      isSaving = true
+      saveError = ''
+      logDebug('Auto-saving local draft', { version: versionBeingSaved })
+
+      try {
+        await SaveDraft({
+          exists: true,
+          content: editor.getHTML(),
+          theme,
+          font,
+          updatedAt: ''
+        })
+        isSaved = versionBeingSaved === contentVersion
+        if (!isSaved) queueAutoSave()
+        logDebug('Local draft auto-saved', { version: versionBeingSaved })
+      } catch (error) {
+        logError('Local draft auto-save failed', error)
+        saveError = 'Local save failed'
+        isSaved = false
+      } finally {
+        isSaving = false
+      }
+    })()
+  }
+
+  async function openFile() {
+    logInfo('Opening file...')
+    try {
+      const [draft, path] = await OpenFile()
+      if (path && editor) {
+        editor.commands.setContent(draft.content)
+        if (themes.some((item) => item.id === draft.theme)) theme = draft.theme
+        if (fonts.some((item) => item.id === draft.font)) font = draft.font
+        updateWordCount()
+        currentPath = path
+        isSaved = true
+        saveError = ''
+        logInfo('File opened', { path })
+      }
+    } catch (error) {
+      logError('File open failed', error)
+      saveError = 'Could not open file'
+    }
+  }
+
+  async function saveFile() {
+    if (!editor) return
+    if (currentPath) {
+      isSaving = true
+      saveError = ''
+      logDebug('Saving file', { path: currentPath })
+      try {
+        await SaveFile(currentPath, {
+          exists: true,
+          content: editor.getHTML(),
+          theme,
+          font,
+          updatedAt: new Date().toISOString()
+        })
+        isSaved = true
+        logDebug('File saved', { path: currentPath })
+      } catch (error) {
+        logError('File save failed', error)
+        saveError = 'Could not save file'
+        isSaved = false
+      } finally {
+        isSaving = false
+      }
+    } else {
+      await saveFileAs()
+    }
+  }
+
+  async function saveFileAs() {
+    if (!editor) return
     isSaving = true
     saveError = ''
-
+    logDebug('Saving file as...')
     try {
-      await SaveDraft({
+      const path = await SaveFileAs({
         exists: true,
         content: editor.getHTML(),
         theme,
         font,
-        updatedAt: ''
+        updatedAt: new Date().toISOString()
       })
-      isSaved = versionBeingSaved === contentVersion
-      if (!isSaved) queueSave()
-    } catch {
-      saveError = 'Local save failed'
+      if (path) {
+        currentPath = path
+        isSaved = true
+        logDebug('File saved as', { path })
+      }
+    } catch (error) {
+      logError('File save as failed', error)
+      saveError = 'Could not save file'
       isSaved = false
     } finally {
       isSaving = false
     }
-  }
-
-  function saveNow() {
-    if (saveTimer) window.clearTimeout(saveTimer)
-    void saveDraft()
   }
 
   function selectTheme(nextTheme: string) {
@@ -123,6 +212,7 @@
   async function restoreDraft() {
     if (!editor) return
 
+    logInfo('Restoring local draft')
     try {
       const draft = await LoadDraft()
       if (draft.exists) {
@@ -131,7 +221,9 @@
         if (fonts.some((item) => item.id === draft.font)) font = draft.font
       }
       updateWordCount()
-    } catch {
+      logInfo(draft.exists ? 'Local draft restored' : 'No local draft found')
+    } catch (error) {
+      logError('Local draft restore failed', error)
       saveError = 'Could not restore local draft'
     } finally {
       isReadyToPersist = true
@@ -182,13 +274,32 @@
       onUpdate: updateStats
     })
 
+    logInfo('TipTap editor initialized')
     void restoreDraft()
+
+    EventsOn('menu:file:open', openFile)
+    EventsOn('menu:file:save', saveFile)
+    EventsOn('menu:file:save-as', saveFileAs)
+
+    window.addEventListener('beforeunload', (event) => {
+      if (!isSaved && !currentPath) {
+        autoSaveLocalDraft()
+      }
+    })
 
     return () => {
       if (saveTimer) window.clearTimeout(saveTimer)
       editor?.destroy()
     }
   })
+
+  $: statusText = saveError
+    ? saveError
+    : isSaving
+      ? currentPath ? 'Saving...' : 'Saving locally...'
+      : isSaved
+        ? currentPath ? 'Saved' : 'Saved locally'
+        : 'Unsaved changes'
 </script>
 
 <svelte:head>
@@ -205,9 +316,8 @@
     </div>
     <div class="document-status">
       <span class:unsaved={!isSaved} class="status-dot"></span>
-      {saveError || (isSaving ? 'Saving locally...' : isSaved ? 'Saved locally' : 'Unsaved changes')}
+      {statusText}
     </div>
-    <button class="save-button" type="button" onclick={saveNow} disabled={isSaving}>Save</button>
     <button class="publish-button" type="button" disabled title="Publishing is planned for a later POC phase">Publish</button>
   </header>
 

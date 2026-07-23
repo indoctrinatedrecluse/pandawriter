@@ -6,6 +6,18 @@ export function LoadDraft() {
   return window['go']['main']['App']['LoadDraft']();
 }
 
+export function OpenFile() {
+  return window['go']['main']['App']['OpenFile']();
+}
+
 export function SaveDraft(arg1) {
   return window['go']['main']['App']['SaveDraft'](arg1);
+}
+
+export function SaveFile(arg1, arg2) {
+  return window['go']['main']['App']['SaveFile'](arg1, arg2);
+}
+
+export function SaveFileAs(arg1) {
+  return window['go']['main']['App']['SaveFileAs'](arg1);
 }

@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-const draftFileName = "step-one-draft.json"
+const draftFileName = "step-one-draft.pwr"
 
 // Draft is the full local state required to restore the Step 1 writing room.
 type Draft struct {

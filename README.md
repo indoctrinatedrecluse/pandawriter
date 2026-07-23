@@ -67,6 +67,10 @@ wails dev
 
 `wails dev` starts the Vite development server and launches the desktop app with live reload.
 
+### Development diagnostics
+
+`wails dev` enables Wails debug logging and opens the Web Inspector on startup. Frontend lifecycle messages, draft save/restore errors, uncaught errors, and unhandled promise rejections are logged with a `[PandaWriter]` prefix. An error during frontend startup also replaces the blank window with a development-only diagnostic screen.
+
 ## Build and launch the Step 1 POC
 
 From PowerShell at the repository root:

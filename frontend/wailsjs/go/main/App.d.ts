@@ -4,4 +4,10 @@ import {main} from '../models';
 
 export function LoadDraft():Promise<main.Draft>;
 
+export function OpenFile():Promise<main.Draft>;
+
 export function SaveDraft(arg1:main.Draft):Promise<void>;
+
+export function SaveFile(arg1:string,arg2:main.Draft):Promise<void>;
+
+export function SaveFileAs(arg1:main.Draft):Promise<string>;
