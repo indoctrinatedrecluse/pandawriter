@@ -23,7 +23,7 @@
   import { logDebug, logError, logInfo } from './logger'
   import { EventsOn } from '../wailsjs/runtime/runtime'
   import ApiKeyModal from './ApiKeyModal.svelte'
-  import { ParagraphHandler } from './paragraph-handler'
+  import { ParagraphHandler, type ParagraphCompletedDetail } from './paragraph-handler'
   import { WordError } from './word-error'
   import type { Analysis, Draft, Theme, Font, WordError as WordErrorType } from './types'
 
@@ -424,15 +424,17 @@
   // --- Illustration Analysis (conservative: lazy + debounced + rate-limited) ---
 
   let pendingIllustrationParagraph: string | null = null
+  let pendingIllustrationPos: number = 0
   let illustrationDebounceTimer: ReturnType<typeof setTimeout> | undefined
 
-  function onParagraphCompleted(paragraph: string) {
-    logDebug('Paragraph completed', { length: paragraph.length })
+  function onParagraphCompleted(detail: ParagraphCompletedDetail) {
+    logDebug('Paragraph completed', { length: detail.paragraph.length })
 
     if (!illustrationOn) return
 
-    // Buffer the latest paragraph
-    pendingIllustrationParagraph = paragraph
+    // Buffer the latest paragraph and its position
+    pendingIllustrationParagraph = detail.paragraph
+    pendingIllustrationPos = detail.afterPos
 
     // Start or reset the 5-second debounce timer
     if (illustrationDebounceTimer) window.clearTimeout(illustrationDebounceTimer)
@@ -476,6 +478,29 @@
     } catch (error) {
       logError('Illustration fetch failed', error)
     }
+  }
+
+  function insertImageIntoEditor() {
+    if (!editor || !analysis?.illustration) return
+
+    const imageURL = analysis.illustration
+    const pos = pendingIllustrationPos
+
+    // Insert an image node right after the paragraph that triggered this illustration
+    editor.chain().focus().insertContentAt(pos, {
+      type: 'paragraph',
+      content: [
+        {
+          type: 'image',
+          attrs: {
+            src: imageURL,
+            alt: 'Scene illustration'
+          }
+        }
+      ]
+    }).run()
+
+    logInfo('Illustration inserted into editor', { pos })
   }
 
   onMount(async () => {
@@ -697,6 +722,9 @@
                 {:else}
                   <p>{analysis.illustration}</p>
                 {/if}
+                <button class="insert-image-button" onclick={insertImageIntoEditor} title="Insert image into the editor">
+                  ↓ Insert into page
+                </button>
               </div>
             {/if}
           </div>
@@ -771,6 +799,23 @@
     border: 1px solid var(--line);
     object-fit: cover;
     max-height: 180px;
+  }
+
+  .insert-image-button {
+    padding: 6px 12px;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--accent);
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    transition: all 0.15s ease;
+  }
+
+  .insert-image-button:hover {
+    background: var(--accent);
+    color: var(--accent-ink);
   }
 
   /* AI Toggle Bar */

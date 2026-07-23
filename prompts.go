@@ -9,7 +9,7 @@ const (
 
 	fontPrompt = `The following is a paragraph from a story. Based on the mood and tone of the paragraph, please suggest a font for the writing application. The available fonts are "literary", "editorial", and "typewriter". Please format your response as a JSON object with a "font" key. Pick exactly one of the three options.`
 
-	illustrationPrompt = `The following is a paragraph from a story. Please provide 2-4 search keywords that would find a matching atmospheric photograph on Unsplash. Think about mood, setting, and tone — for example "misty forest dark" or "rainy city window neon". Please format your response as a JSON object with an "illustration" key containing the search keywords separated by spaces. Keep it concise — just the keywords.`
+	illustrationPrompt = `The following is a paragraph from a story. Choose 2-3 simple keywords (only from: nature, landscape, forest, ocean, mountain, desert, city, street, room, window, rain, snow, fog, mist, storm, sunrise, sunset, night, dawn, autumn, spring, summer, winter, cozy, dark, bright, moody, minimal, vintage, modern, warm, cold, quiet, lonely, peaceful) that best match the scene. Format as JSON: {"illustration": "keyword1 keyword2"}. Return ONLY keywords from this list separated by spaces — no other text.`
 
 	wordAutocompletePrompt = `The writer is currently typing and has started the word "%s". Based on the surrounding text, suggest 3 to 5 complete words that could be what the writer intends. Consider context, mood, and literary quality. Please format your response as a JSON object with a "words" key containing an array of strings. Return only plausible, complete words — not phrases.`
 

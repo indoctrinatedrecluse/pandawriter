@@ -1,8 +1,14 @@
 import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 
+export type ParagraphCompletedDetail = {
+  paragraph: string
+  /** The document position just after the completed paragraph (where Enter was pressed) */
+  afterPos: number
+}
+
 export type ParagraphHandlerOptions = {
-  onParagraphCompleted: (paragraph: string) => void
+  onParagraphCompleted: (detail: ParagraphCompletedDetail) => void
 }
 
 export const ParagraphHandler = Extension.create<ParagraphHandlerOptions>({
@@ -34,7 +40,8 @@ export const ParagraphHandler = Extension.create<ParagraphHandlerOptions>({
 
             const paragraphText = parent.textContent.trim()
             if (paragraphText) {
-              this.options.onParagraphCompleted(paragraphText)
+              const afterPos = $from.pos
+              this.options.onParagraphCompleted({ paragraph: paragraphText, afterPos })
             }
 
             return false
