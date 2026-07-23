@@ -170,9 +170,12 @@
   }
 
   .modal-content {
-    background-color: var(--color-bg-deep);
+    background-color: rgba(20, 20, 30, 0.92);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
     width: 90%;
     max-width: 500px;
   }
