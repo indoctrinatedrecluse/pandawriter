@@ -274,6 +274,15 @@
     editor.chain().focus().extendMarkRange('link').setLink({ href: url.trim() }).run()
   }
 
+  async function refreshApiKeyStatus() {
+    try {
+      hasApiKey = await HasAnyAPIKey()
+      logInfo('API key status refreshed', { hasApiKey })
+    } catch {
+      hasApiKey = false
+    }
+  }
+
   // --- AI Feature Toggles ---
 
   function toggleWordAutocomplete() {
@@ -556,7 +565,7 @@
 </svelte:head>
 
 {#if showApiKeyModal}
-  <ApiKeyModal on:close={() => (showApiKeyModal = false)} />
+  <ApiKeyModal on:close={() => (showApiKeyModal = false)} on:keyschanged={refreshApiKeyStatus} />
 {/if}
 
 <main class={`app-shell theme-${theme} font-${font}`}>

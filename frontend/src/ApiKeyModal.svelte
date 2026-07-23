@@ -54,6 +54,7 @@
       logInfo('DeepSeek API key saved')
       deepSeekApiKey = ''
       await checkApiKeys()
+      notifyChanged()
     } catch (error) {
       logError('Could not save DeepSeek API key', error)
       saveDeepSeekError = 'Could not save DeepSeek API key.'
@@ -67,6 +68,7 @@
       await RemoveDeepSeekAPIKey()
       logInfo('DeepSeek API key removed')
       await checkApiKeys()
+      notifyChanged()
     } catch (error) {
       logError('Could not remove DeepSeek API key', error)
       saveDeepSeekError = 'Could not remove DeepSeek API key.'
@@ -81,6 +83,7 @@
       logInfo('Unsplash API key saved')
       unsplashApiKey = ''
       await checkApiKeys()
+      notifyChanged()
     } catch (error) {
       logError('Could not save Unsplash API key', error)
       saveUnsplashError = 'Could not save Unsplash API key.'
@@ -94,6 +97,7 @@
       await RemoveUnsplashAPIKey()
       logInfo('Unsplash API key removed')
       await checkApiKeys()
+      notifyChanged()
     } catch (error) {
       logError('Could not remove Unsplash API key', error)
       saveUnsplashError = 'Could not remove Unsplash API key.'
@@ -102,6 +106,10 @@
 
   function close() {
     dispatch('close')
+  }
+
+  function notifyChanged() {
+    dispatch('keyschanged')
   }
 
   onMount(() => {
@@ -163,10 +171,12 @@
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    background-color: rgba(0, 0, 0, 0.55);
     display: flex;
     justify-content: center;
     align-items: center;
+    pointer-events: all;
   }
 
   .modal-content {
