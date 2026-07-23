@@ -1,0 +1,48 @@
+# Editor swap files
+.vscode/
+*.swp
+*.swo
+*~
+
+# Environment files and local secrets (including BYOK API keys)
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Go build and test output
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.out
+
+# Wails build output
+build/bin/
+.tools/
+.wails-template/
+
+# Frontend dependencies and generated bundles
+frontend/node_modules/
+frontend/dist/
+frontend/.svelte-kit/
+
+# Local Step 1 draft fallback (the desktop app uses the OS application-data folder)
+step-one-draft.json
+
+# JavaScript package-manager logs and caches
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+.npm/
+.yarn/
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini

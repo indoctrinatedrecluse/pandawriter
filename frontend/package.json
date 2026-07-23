@@ -1,0 +1,29 @@
+{
+  "name": "pandawriter-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "check": "svelte-check --tsconfig ./tsconfig.json"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^6.0.0",
+    "@tsconfig/svelte": "^5.0.0",
+    "svelte": "^5.55.7",
+    "svelte-check": "^4.0.0",
+    "svelte-preprocess": "^6.0.3",
+    "typescript": "^5.6.3",
+    "vite": "^7.0.0"
+  },
+  "dependencies": {
+    "@tiptap/core": "^3.28.0",
+    "@tiptap/extension-color": "^3.28.0",
+    "@tiptap/extension-link": "^3.28.0",
+    "@tiptap/extension-placeholder": "^3.28.0",
+    "@tiptap/extension-text-style": "^3.28.0",
+    "@tiptap/extension-underline": "^3.28.0",
+    "@tiptap/starter-kit": "^3.28.0"
+  }
+}
