@@ -692,7 +692,11 @@
             {#if analysis.illustration}
               <div class="suggestion">
                 <p>Illustration</p>
-                <p>{analysis.illustration}</p>
+                {#if analysis.illustration.startsWith('http')}
+                  <img class="illustration-image" src={analysis.illustration} alt="Scene illustration" />
+                {:else}
+                  <p>{analysis.illustration}</p>
+                {/if}
               </div>
             {/if}
           </div>
@@ -759,6 +763,14 @@
 
   .suggestion p {
     margin: 0;
+  }
+
+  .illustration-image {
+    width: 100%;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    object-fit: cover;
+    max-height: 180px;
   }
 
   /* AI Toggle Bar */

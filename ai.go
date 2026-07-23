@@ -25,6 +25,7 @@ const (
 // AI is the client for the DeepSeek API.
 type AI struct {
 	apiKey               string
+	unsplashAccessKey    string
 	httpClient           *http.Client
 	lastIllustrationTime time.Time // rate-limiting for illustration calls
 }
@@ -75,8 +76,13 @@ func NewAI() (*AI, error) {
 		return nil, errors.New("DeepSeek API key not found")
 	}
 
+	// Unsplash key is optional — illustration will still work with text descriptions
+	unsplashKey, _ := keyring.Get(credentialService, unsplashKeyAccount)
+	unsplashKey = strings.TrimSpace(unsplashKey)
+
 	return &AI{
-		apiKey: apiKey,
+		apiKey:            apiKey,
+		unsplashAccessKey: unsplashKey,
 		httpClient: &http.Client{
 			Timeout: httpTimeout,
 		},
@@ -107,7 +113,7 @@ func (a *AI) AnalyzeParagraph(ctx context.Context, text string) (*Analysis, erro
 		r.wordErrors, r.wordErr = a.getWordErrors(ctx, text)
 		r.theme, r.themeErr = a.getTheme(ctx, text)
 		r.font, r.fontErr = a.getFont(ctx, text)
-		r.illustration, r.illustErr = a.getIllustration(ctx, text)
+		r.illustration, r.illustErr = a.getIllustrationKeywords(ctx, text)
 		ch <- r
 	}()
 
@@ -233,19 +239,36 @@ func (a *AI) CanIllustrate(text string) bool {
 	return true
 }
 
-// GetIllustration returns an illustration description for the given text.
-// It performs a single lightweight API call (no theme/font/word-error analysis).
-// The caller should check CanIllustrate first.
+// GetIllustration returns an image URL for the given paragraph text.
+// It first uses DeepSeek to extract search keywords, then searches Unsplash for a matching photo.
+// Falls back to a text description if Unsplash is not configured or returns no results.
 func (a *AI) GetIllustration(ctx context.Context, text string) (string, error) {
 	if a.apiKey == "" {
 		return "", errors.New("AI client not initialized")
 	}
 
 	a.lastIllustrationTime = time.Now()
-	return a.getIllustration(ctx, text)
+
+	// Step 1: Ask DeepSeek for search keywords
+	keywords, err := a.getIllustrationKeywords(ctx, text)
+	if err != nil {
+		return "", err
+	}
+
+	// Step 2: Search Unsplash for an actual image
+	if a.unsplashAccessKey != "" {
+		imageURL, err := a.searchUnsplash(ctx, keywords)
+		if err == nil && imageURL != "" {
+			return imageURL, nil
+		}
+		// Fall through to text description if Unsplash fails
+	}
+
+	// Fallback: return the keyword description as text
+	return keywords, nil
 }
 
-func (a *AI) getIllustration(ctx context.Context, text string) (string, error) {
+func (a *AI) getIllustrationKeywords(ctx context.Context, text string) (string, error) {
 	resp, err := a.createChatCompletion(ctx, illustrationPrompt, text)
 	if err != nil {
 		return "", err
@@ -260,6 +283,55 @@ func (a *AI) getIllustration(ctx context.Context, text string) (string, error) {
 	}
 
 	return illustration.Illustration, nil
+}
+
+// unsplashSearchResponse is the response from the Unsplash search API.
+type unsplashSearchResponse struct {
+	Results []struct {
+		URLs struct {
+			Regular string `json:"regular"`
+			Small   string `json:"small"`
+		} `json:"urls"`
+		Description string `json:"description"`
+	} `json:"results"`
+}
+
+func (a *AI) searchUnsplash(ctx context.Context, query string) (string, error) {
+	url := fmt.Sprintf("https://api.unsplash.com/search/photos?query=%s&per_page=1&orientation=landscape", strings.ReplaceAll(query, " ", "+"))
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Client-ID "+a.unsplashAccessKey)
+
+	resp, err := a.httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("Unsplash API returned status %d", resp.StatusCode)
+	}
+
+	var result unsplashSearchResponse
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		return "", err
+	}
+
+	if len(result.Results) == 0 {
+		return "", nil
+	}
+
+	// Prefer regular size; fall back to small
+	imageURL := result.Results[0].URLs.Regular
+	if imageURL == "" {
+		imageURL = result.Results[0].URLs.Small
+	}
+
+	return imageURL, nil
 }
 
 func (a *AI) createChatCompletion(ctx context.Context, systemPromptContent, userContent string) (string, error) {
