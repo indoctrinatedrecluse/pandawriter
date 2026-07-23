@@ -40,6 +40,14 @@ func (a *App) HasAnyAPIKey() bool {
 	return a.ai != nil
 }
 
+// HasUnsplashAPIKey returns true if the Unsplash access key is configured.
+func (a *App) HasUnsplashAPIKey() bool {
+	if a.ai == nil {
+		return false
+	}
+	return a.ai.unsplashAccessKey != ""
+}
+
 // AnalyzeParagraph analyzes a paragraph of text and returns an analysis.
 func (a *App) AnalyzeParagraph(text string) (*Analysis, error) {
 	if a.ai == nil {

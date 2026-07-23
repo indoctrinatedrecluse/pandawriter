@@ -14,6 +14,8 @@ export function GetIllustration(arg1:string):Promise<string>;
 
 export function HasAnyAPIKey():Promise<boolean>;
 
+export function HasUnsplashAPIKey():Promise<boolean>;
+
 export function LoadDraft():Promise<main.Draft>;
 
 export function OpenFile():Promise<main.Draft>;

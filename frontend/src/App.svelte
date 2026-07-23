@@ -17,6 +17,7 @@
     CompleteWord,
     CompleteParagraph,
     HasAnyAPIKey,
+    HasUnsplashAPIKey,
     CanIllustrate,
     GetIllustration
   } from '../wailsjs/go/main/App'
@@ -57,6 +58,7 @@
 
   // AI feature toggles — only one of word/paragraph autocomplete can be on at a time
   let hasApiKey = false
+  let hasUnsplashKey = false
   let wordAutocompleteOn = false
   let paragraphAutocompleteOn = false
   let illustrationOn = false
@@ -277,9 +279,13 @@
   async function refreshApiKeyStatus() {
     try {
       hasApiKey = await HasAnyAPIKey()
-      logInfo('API key status refreshed', { hasApiKey })
+      hasUnsplashKey = hasApiKey && await HasUnsplashAPIKey()
+      if (!hasUnsplashKey) illustrationOn = false
+      logInfo('API key status refreshed', { hasApiKey, hasUnsplashKey })
     } catch {
       hasApiKey = false
+      hasUnsplashKey = false
+      illustrationOn = false
     }
   }
 
@@ -507,9 +513,11 @@
     // Check API key status
     try {
       hasApiKey = await HasAnyAPIKey()
-      logInfo('API key status', { hasApiKey })
+      hasUnsplashKey = await HasUnsplashAPIKey()
+      logInfo('API key status', { hasApiKey, hasUnsplashKey })
     } catch {
       hasApiKey = false
+      hasUnsplashKey = false
     }
 
     editor = new Editor({
@@ -630,16 +638,28 @@
         <span class="pill-track"></span>
         <span class="pill-text">Sentence</span>
       </button>
-      <button
-        type="button"
-        class="toggle-pill"
-        class:active={illustrationOn}
-        onclick={toggleIllustration}
-        title="Analyze finished paragraphs for themes & illustrations"
-      >
-        <span class="pill-track"></span>
-        <span class="pill-text">Illustration</span>
-      </button>
+      {#if hasUnsplashKey}
+        <button
+          type="button"
+          class="toggle-pill"
+          class:active={illustrationOn}
+          onclick={toggleIllustration}
+          title="Analyze finished paragraphs for themes & illustrations"
+        >
+          <span class="pill-track"></span>
+          <span class="pill-text">Illustration</span>
+        </button>
+      {:else}
+        <button
+          type="button"
+          class="toggle-pill disabled-pill"
+          disabled
+          title="Configure an Unsplash access key to enable illustrations"
+        >
+          <span class="pill-track"></span>
+          <span class="pill-text">Illustration</span>
+        </button>
+      {/if}
       {#if paragraphAutocompleteOn}
         <span class="toggle-hint">Ctrl+Space to autocomplete</span>
       {/if}
@@ -861,6 +881,11 @@
     background: var(--accent);
     color: var(--accent-ink);
     border-color: var(--accent);
+  }
+
+  .disabled-pill {
+    opacity: 0.35;
+    cursor: not-allowed;
   }
 
   .pill-track {

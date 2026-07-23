@@ -26,6 +26,10 @@ export function HasAnyAPIKey() {
   return window['go']['main']['App']['HasAnyAPIKey']();
 }
 
+export function HasUnsplashAPIKey() {
+  return window['go']['main']['App']['HasUnsplashAPIKey']();
+}
+
 export function LoadDraft() {
   return window['go']['main']['App']['LoadDraft']();
 }
