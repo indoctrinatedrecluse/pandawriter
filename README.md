@@ -105,4 +105,8 @@ The resulting executable is written to `build/bin/`. This directory is intention
 
 ## Status
 
-Step 1 is complete: the local writing room provides a TipTap editor, appearance controls, automatic local draft saving, and draft restoration on the next launch. The draft is saved under the current user's OS application-data directory, outside the repository. AI scene analysis, credential-settings UI, illustrations, and publishing remain future steps.
+Step 1 is complete: the local writing room provides a TipTap editor, appearance controls, automatic local draft saving, and draft restoration on the next launch. The draft is saved under the current user's OS application-data directory, outside the repository.
+
+Step 2 is complete: the editor detects finished paragraphs (Enter at end of a paragraph) and, when enabled, requests structured scene analysis from DeepSeek. The analysis returns theme/font suggestions and an illustration description. Word autocomplete (suggests words as you type after 3+ characters) and paragraph autocomplete (Ctrl+Space to complete a sentence) are also available as togglable AI features. A DeepSeek API key can be configured in-app and stored securely in Windows Credential Manager. All AI features are toggled via a sleek on/off menu bar that appears only when an API key is configured.
+
+Publishing to Blogger, image generation, and a searchable story library remain deferred.

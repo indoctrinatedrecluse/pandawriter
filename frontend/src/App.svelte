@@ -7,29 +7,23 @@
   import Underline from '@tiptap/extension-underline'
   import { TextStyle } from '@tiptap/extension-text-style'
   import Color from '@tiptap/extension-color'
-  import { LoadDraft, SaveDraft, OpenFile, SaveFile, SaveFileAs } from '../wailsjs/go/main/App'
+  import {
+    LoadDraft,
+    SaveDraft,
+    OpenFile,
+    SaveFile,
+    SaveFileAs,
+    AnalyzeParagraph,
+    CompleteWord,
+    CompleteParagraph,
+    HasAnyAPIKey
+  } from '../wailsjs/go/main/App'
   import { logDebug, logError, logInfo } from './logger'
   import { EventsOn } from '../wailsjs/runtime/runtime'
-
-  type Theme = {
-    id: string
-    name: string
-    caption: string
-  }
-
-  type Font = {
-    id: string
-    name: string
-    sample: string
-  }
-
-  type Draft = {
-    exists: boolean
-    content: string
-    theme: string
-    font: string
-    updatedAt: string
-  }
+  import ApiKeyModal from './ApiKeyModal.svelte'
+  import { ParagraphHandler } from './paragraph-handler'
+  import { WordError } from './word-error'
+  import type { Analysis, Draft, Theme, Font, WordError as WordErrorType } from './types'
 
   const themes: Theme[] = [
     { id: 'midnight', name: 'Midnight ink', caption: 'Quiet and cinematic' },
@@ -56,6 +50,17 @@
   let contentVersion = 0
   let saveTimer: ReturnType<typeof setTimeout> | undefined
   let currentPath: string | null = null
+  let showApiKeyModal = false
+  let analysis: Analysis | null = null
+
+  // AI feature toggles — only one of word/paragraph autocomplete can be on at a time
+  let hasApiKey = false
+  let wordAutocompleteOn = false
+  let paragraphAutocompleteOn = false
+  let illustrationOn = false
+  let autocompleteDebounceTimer: ReturnType<typeof setTimeout> | undefined
+  let autocompleteLastCall = 0
+  let suggestionsPopup: { words: string[]; visible: boolean } = { words: [], visible: false }
 
   const starterContent = `
     <h1>Untitled story</h1>
@@ -116,6 +121,20 @@
     })()
   }
 
+  function newFile() {
+    if (!editor) return
+    logInfo('Creating new file')
+    editor.commands.setContent(starterContent)
+    theme = 'midnight'
+    font = 'literary'
+    updateWordCount()
+    currentPath = null
+    isSaved = true
+    saveError = ''
+    analysis = null
+    dismissSuggestions()
+  }
+
   async function openFile() {
     logInfo('Opening file...')
     try {
@@ -128,6 +147,8 @@
         currentPath = path
         isSaved = true
         saveError = ''
+        analysis = null
+        dismissSuggestions()
         logInfo('File opened', { path })
       }
     } catch (error) {
@@ -251,7 +272,183 @@
     editor.chain().focus().extendMarkRange('link').setLink({ href: url.trim() }).run()
   }
 
-  onMount(() => {
+  // --- AI Feature Toggles ---
+
+  function toggleWordAutocomplete() {
+    wordAutocompleteOn = !wordAutocompleteOn
+    if (wordAutocompleteOn) {
+      paragraphAutocompleteOn = false
+      dismissSuggestions()
+    }
+    logInfo('Word autocomplete', { enabled: wordAutocompleteOn })
+  }
+
+  function toggleParagraphAutocomplete() {
+    paragraphAutocompleteOn = !paragraphAutocompleteOn
+    if (paragraphAutocompleteOn) {
+      wordAutocompleteOn = false
+      dismissSuggestions()
+    }
+    logInfo('Paragraph autocomplete', { enabled: paragraphAutocompleteOn })
+  }
+
+  function toggleIllustration() {
+    illustrationOn = !illustrationOn
+    logInfo('Illustration', { enabled: illustrationOn })
+  }
+
+  function dismissSuggestions() {
+    suggestionsPopup = { words: [], visible: false }
+  }
+
+  // --- Autocomplete Logic ---
+
+  function onEditorKeyUp() {
+    if (!editor || !wordAutocompleteOn) return
+
+    const { state } = editor
+    const { selection } = state
+    const { $from } = selection
+
+    // Only autocomplete within paragraph nodes
+    if ($from.parent.type.name !== 'paragraph') {
+      dismissSuggestions()
+      return
+    }
+
+    // Get the partial word before the cursor
+    const nodeText = $from.parent.textContent
+    const cursorPos = $from.parentOffset
+
+    // Extract the word currently being typed (between last space and cursor)
+    const textBeforeCursor = nodeText.substring(0, cursorPos)
+    const lastSpaceIndex = textBeforeCursor.lastIndexOf(' ')
+    const partialWord = textBeforeCursor.substring(lastSpaceIndex + 1)
+
+    if (partialWord.length < 3) {
+      dismissSuggestions()
+      return
+    }
+
+    // Throttle API calls — at least 800ms between calls
+    const now = Date.now()
+    if (now - autocompleteLastCall < 800) {
+      return
+    }
+
+    if (autocompleteDebounceTimer) window.clearTimeout(autocompleteDebounceTimer)
+    autocompleteDebounceTimer = window.setTimeout(async () => {
+      // Re-check word is still valid
+      const currentText = editor.getText()
+      const textBefore = currentText.substring(0, editor.state.selection.$from.pos - 1)
+      const lastSpace = textBefore.lastIndexOf(' ')
+      const word = textBefore.substring(lastSpace + 1)
+      if (word.length < 3) {
+        dismissSuggestions()
+        return
+      }
+
+      // Get context: current paragraph text up to the cursor
+      const paragraphText = $from.parent.textContent.substring(0, cursorPos)
+
+      autocompleteLastCall = Date.now()
+      try {
+        const words = await CompleteWord(word, paragraphText)
+        if (words && words.length > 0) {
+          suggestionsPopup = { words, visible: true }
+        } else {
+          dismissSuggestions()
+        }
+      } catch (error) {
+        logError('Word autocomplete failed', error)
+        dismissSuggestions()
+      }
+    }, 300)
+  }
+
+  function acceptSuggestion(word: string) {
+    if (!editor) return
+    const { state } = editor
+    const { selection } = state
+    const { $from } = selection
+
+    // Find the start of the partial word
+    const nodeText = $from.parent.textContent
+    const cursorPos = $from.parentOffset
+    const textBeforeCursor = nodeText.substring(0, cursorPos)
+    const lastSpaceIndex = textBeforeCursor.lastIndexOf(' ')
+    const partialWord = textBeforeCursor.substring(lastSpaceIndex + 1)
+
+    // Delete the partial word and insert the full word
+    const from = $from.pos - partialWord.length
+    const to = $from.pos
+
+    editor.chain().focus().deleteRange({ from, to }).insertContent(word + ' ').run()
+    dismissSuggestions()
+  }
+
+  function triggerParagraphAutocomplete() {
+    if (!editor || !paragraphAutocompleteOn) return
+
+    // Get the text up to the cursor from the current paragraph
+    const { state } = editor
+    const { selection } = state
+    const { $from } = selection
+
+    const paragraphText = $from.parent.textContent
+
+    void (async () => {
+      try {
+        const continuation = await CompleteParagraph(paragraphText)
+        if (continuation) {
+          // Insert the continuation at the cursor
+          editor.chain().focus().insertContent(' ' + continuation).run()
+        }
+      } catch (error) {
+        logError('Paragraph autocomplete failed', error)
+      }
+    })()
+  }
+
+  // --- Paragraph Analysis ---
+
+  async function onParagraphCompleted(paragraph: string) {
+    logInfo('Paragraph completed', { paragraph })
+
+    // Illustration suggestion
+    if (illustrationOn) {
+      try {
+        analysis = await AnalyzeParagraph(paragraph)
+        logInfo('Paragraph analysis', { analysis })
+
+        if (analysis.wordErrors && editor) {
+          const { from, to } = editor.state.selection
+          const text = editor.state.doc.textBetween(from, to, ' ')
+          analysis.wordErrors.forEach((error: WordErrorType) => {
+            const regex = new RegExp(`\\b${error.incorrect}\\b`, 'gi')
+            let match
+            while ((match = regex.exec(text)) !== null) {
+              const start = from + match.index
+              const end = start + match[0].length
+              editor.chain().setTextSelection({ from: start, to: end }).setWordError({ incorrect: error.incorrect }).run()
+            }
+          })
+        }
+      } catch (error) {
+        logError('Paragraph analysis failed', error)
+      }
+    }
+  }
+
+  onMount(async () => {
+    // Check API key status
+    try {
+      hasApiKey = await HasAnyAPIKey()
+      logInfo('API key status', { hasApiKey })
+    } catch {
+      hasApiKey = false
+    }
+
     editor = new Editor({
       element: editorElement,
       extensions: [
@@ -263,12 +460,20 @@
         Link.configure({ openOnClick: false, autolink: true }),
         Underline,
         TextStyle,
-        Color
+        Color,
+        ParagraphHandler.configure({
+          onParagraphCompleted
+        }),
+        WordError
       ],
       content: starterContent,
       editorProps: {
         attributes: {
           class: 'story-prose'
+        },
+        handleKeyUp: () => {
+          onEditorKeyUp()
+          return false
         }
       },
       onUpdate: updateStats
@@ -277,9 +482,13 @@
     logInfo('TipTap editor initialized')
     void restoreDraft()
 
+    EventsOn('menu:file:new', newFile)
     EventsOn('menu:file:open', openFile)
     EventsOn('menu:file:save', saveFile)
     EventsOn('menu:file:save-as', saveFileAs)
+    EventsOn('menu:settings:configure-api-key', () => {
+      showApiKeyModal = true
+    })
 
     window.addEventListener('beforeunload', (event) => {
       if (!isSaved && !currentPath) {
@@ -287,8 +496,17 @@
       }
     })
 
+    // Keyboard shortcut for paragraph autocomplete: Ctrl+Space
+    window.addEventListener('keydown', (event) => {
+      if (event.ctrlKey && event.key === ' ') {
+        event.preventDefault()
+        triggerParagraphAutocomplete()
+      }
+    })
+
     return () => {
       if (saveTimer) window.clearTimeout(saveTimer)
+      if (autocompleteDebounceTimer) window.clearTimeout(autocompleteDebounceTimer)
       editor?.destroy()
     }
   })
@@ -308,6 +526,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
 </svelte:head>
 
+{#if showApiKeyModal}
+  <ApiKeyModal on:close={() => (showApiKeyModal = false)} />
+{/if}
+
 <main class={`app-shell theme-${theme} font-${font}`}>
   <header class="topbar">
     <div class="brand" aria-label="PandaWriter">
@@ -320,6 +542,46 @@
     </div>
     <button class="publish-button" type="button" disabled title="Publishing is planned for a later POC phase">Publish</button>
   </header>
+
+  <!-- AI Feature Toggle Menu — only visible when API key is configured -->
+  {#if hasApiKey}
+    <nav class="ai-toggle-bar" aria-label="AI features">
+      <span class="toggle-label">AI</span>
+      <button
+        type="button"
+        class="toggle-pill"
+        class:active={wordAutocompleteOn}
+        onclick={toggleWordAutocomplete}
+        title="Suggest words as you type"
+      >
+        <span class="pill-track"></span>
+        <span class="pill-text">Word</span>
+      </button>
+      <button
+        type="button"
+        class="toggle-pill"
+        class:active={paragraphAutocompleteOn}
+        onclick={toggleParagraphAutocomplete}
+        title="Ctrl+Space to complete a sentence"
+      >
+        <span class="pill-track"></span>
+        <span class="pill-text">Sentence</span>
+      </button>
+      <button
+        type="button"
+        class="toggle-pill"
+        class:active={illustrationOn}
+        onclick={toggleIllustration}
+        title="Analyze finished paragraphs for themes & illustrations"
+      >
+        <span class="pill-track"></span>
+        <span class="pill-text">Illustration</span>
+      </button>
+      {#if paragraphAutocompleteOn}
+        <span class="toggle-hint">Ctrl+Space to autocomplete</span>
+      {/if}
+    </nav>
+  {/if}
 
   <section class="workspace">
     <aside class="side-panel" aria-label="Writing appearance">
@@ -370,6 +632,34 @@
           {/each}
         </div>
       </section>
+
+      {#if analysis}
+        <section class="picker-section" aria-labelledby="suggestions-label">
+          <div class="section-heading">
+            <h3 id="suggestions-label">Suggestions</h3>
+          </div>
+          <div class="suggestions">
+              {#if analysis.theme}
+              <div class="suggestion">
+                <p>Theme</p>
+                <button class="button" onclick={() => selectTheme(analysis.theme!)}>{analysis.theme}</button>
+              </div>
+            {/if}
+            {#if analysis.font}
+              <div class="suggestion">
+                <p>Font</p>
+                <button class="button" onclick={() => selectFont(analysis.font!)}>{analysis.font}</button>
+              </div>
+            {/if}
+            {#if analysis.illustration}
+              <div class="suggestion">
+                <p>Illustration</p>
+                <p>{analysis.illustration}</p>
+              </div>
+            {/if}
+          </div>
+        </section>
+      {/if}
     </aside>
 
     <section class="editor-area" aria-label="Story editor">
@@ -390,11 +680,166 @@
           <span class="toolbar-divider"></span>
           <button type="button" aria-label="Undo" onclick={() => command((instance) => instance.chain().focus().undo().run())}>↶</button>
           <button type="button" aria-label="Redo" onclick={() => command((instance) => instance.chain().focus().redo().run())}>↷</button>
+          {#if paragraphAutocompleteOn}
+            <span class="toolbar-divider"></span>
+            <button type="button" aria-label="Paragraph autocomplete (Ctrl+Space)" onclick={triggerParagraphAutocomplete} title="Complete sentence (Ctrl+Space)">✦</button>
+          {/if}
         </div>
       </div>
+
+      <!-- Word autocomplete popup -->
+      {#if wordAutocompleteOn && suggestionsPopup.visible}
+        <div class="autocomplete-popup">
+          {#each suggestionsPopup.words as word}
+            <button type="button" class="completion-item" onclick={() => acceptSuggestion(word)}>
+              {word}
+            </button>
+          {/each}
+          <button type="button" class="completion-dismiss" onclick={dismissSuggestions}>× dismiss</button>
+        </div>
+      {/if}
+
       <article class="page" aria-label="Editable story">
         <div bind:this={editorElement}></div>
       </article>
     </section>
   </section>
 </main>
+
+<style>
+  .suggestions {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .suggestion {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .suggestion p {
+    margin: 0;
+  }
+
+  /* AI Toggle Bar */
+  .ai-toggle-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 32px;
+    background: color-mix(in srgb, var(--surface) 50%, transparent);
+    border-bottom: 1px solid var(--line);
+    font-size: 12px;
+  }
+
+  .toggle-label {
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-right: 4px;
+    font-size: 11px;
+  }
+
+  .toggle-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 12px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--control);
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 12px;
+  }
+
+  .toggle-pill:hover {
+    border-color: var(--accent);
+    color: var(--ink);
+  }
+
+  .toggle-pill.active {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border-color: var(--accent);
+  }
+
+  .pill-track {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.3;
+    transition: opacity 0.2s ease;
+    flex-shrink: 0;
+  }
+
+  .toggle-pill.active .pill-track {
+    opacity: 1;
+    background: var(--accent-ink);
+  }
+
+  .pill-text {
+    font-weight: 600;
+  }
+
+  .toggle-hint {
+    margin-left: 12px;
+    color: var(--muted);
+    font-size: 11px;
+    font-style: italic;
+  }
+
+  /* Autocomplete popup */
+  .autocomplete-popup {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 825px;
+    margin: 0 auto 8px;
+    padding: 6px 10px;
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+    flex-wrap: wrap;
+  }
+
+  .completion-item {
+    padding: 4px 12px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--control);
+    color: var(--ink);
+    cursor: pointer;
+    font-size: 13px;
+    font-family: var(--story-font);
+    transition: all 0.15s ease;
+  }
+
+  .completion-item:hover {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border-color: var(--accent);
+  }
+
+  .completion-dismiss {
+    margin-left: auto;
+    padding: 4px 8px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 11px;
+    transition: color 0.15s ease;
+  }
+
+  .completion-dismiss:hover {
+    color: var(--ink);
+  }
+</style>

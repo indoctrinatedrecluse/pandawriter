@@ -20,6 +20,10 @@ func main() {
 
 	appMenu := menu.NewMenu()
 	fileMenu := appMenu.AddSubmenu("File")
+	fileMenu.AddText("New", keys.CmdOrCtrl("n"), func(_ *menu.CallbackData) {
+		runtime.EventsEmit(app.ctx, "menu:file:new")
+	})
+	fileMenu.AddSeparator()
 	fileMenu.AddText("Open...", keys.CmdOrCtrl("o"), func(_ *menu.CallbackData) {
 		runtime.EventsEmit(app.ctx, "menu:file:open")
 	})
@@ -32,6 +36,19 @@ func main() {
 	fileMenu.AddSeparator()
 	fileMenu.AddText("Quit", keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) {
 		runtime.Quit(app.ctx)
+	})
+
+	editMenu := appMenu.AddSubmenu("Edit")
+	editMenu.AddText("Undo", keys.CmdOrCtrl("z"), nil) // Native handler
+	editMenu.AddText("Redo", keys.CmdOrCtrl("y"), nil) // Native handler
+	editMenu.AddSeparator()
+	editMenu.AddText("Cut", keys.CmdOrCtrl("x"), nil)    // Native handler
+	editMenu.AddText("Copy", keys.CmdOrCtrl("c"), nil)   // Native handler
+	editMenu.AddText("Paste", keys.CmdOrCtrl("v"), nil) // Native handler
+
+	settingsMenu := appMenu.AddSubmenu("Settings")
+	settingsMenu.AddText("Configure API Key...", nil, func(_ *menu.CallbackData) {
+		runtime.EventsEmit(app.ctx, "menu:settings:configure-api-key")
 	})
 
 	err := wails.Run(&options.App{
@@ -53,6 +70,7 @@ func main() {
 		OnStartup: app.startup,
 		Bind: []interface{}{
 			app,
+			&app.credentials,
 		},
 	})
 

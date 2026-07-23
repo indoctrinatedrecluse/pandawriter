@@ -8,8 +8,9 @@ import (
 )
 
 const (
-	credentialService  = "pandawriter"
-	deepSeekKeyAccount = "deepseek-api-key"
+	credentialService     = "pandawriter"
+	deepSeekKeyAccount    = "deepseek-api-key"
+	unsplashKeyAccount = "unsplash-access-key"
 )
 
 // CredentialStore is the boundary between PandaWriter and the OS credential store.
@@ -34,6 +35,30 @@ func (CredentialStore) SaveDeepSeekAPIKey(apiKey string) error {
 
 func (CredentialStore) RemoveDeepSeekAPIKey() error {
 	err := keyring.Delete(credentialService, deepSeekKeyAccount)
+	if errors.Is(err, keyring.ErrNotFound) {
+		return nil
+	}
+	return err
+}
+
+func (CredentialStore) HasUnsplashAPIKey() (bool, error) {
+	_, err := keyring.Get(credentialService, unsplashKeyAccount)
+	if errors.Is(err, keyring.ErrNotFound) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+func (CredentialStore) SaveUnsplashAPIKey(apiKey string) error {
+	apiKey = strings.TrimSpace(apiKey)
+	if apiKey == "" {
+		return errors.New("Unsplash API key cannot be empty")
+	}
+	return keyring.Set(credentialService, unsplashKeyAccount, apiKey)
+}
+
+func (CredentialStore) RemoveUnsplashAPIKey() error {
+	err := keyring.Delete(credentialService, unsplashKeyAccount)
 	if errors.Is(err, keyring.ErrNotFound) {
 		return nil
 	}

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -10,16 +11,57 @@ import (
 
 // App owns desktop lifecycle state and will expose backend services to the UI.
 type App struct {
-	ctx    context.Context
-	drafts DraftStore
+	ctx         context.Context
+	drafts      DraftStore
+	credentials CredentialStore
+	ai          *AI
 }
 
 func NewApp() *App {
-	return &App{drafts: DraftStore{appName: "PandaWriter"}}
+	ai, err := NewAI()
+	if err != nil {
+		// Log the error but don't prevent startup.
+		// The user can configure the key later.
+		println("Could not initialize AI client:", err.Error())
+	}
+	return &App{
+		drafts:      DraftStore{appName: "PandaWriter"},
+		credentials: CredentialStore{},
+		ai:          ai,
+	}
 }
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+}
+
+// HasAnyAPIKey returns true if the DeepSeek API key is configured.
+func (a *App) HasAnyAPIKey() bool {
+	return a.ai != nil
+}
+
+// AnalyzeParagraph analyzes a paragraph of text and returns an analysis.
+func (a *App) AnalyzeParagraph(text string) (*Analysis, error) {
+	if a.ai == nil {
+		return nil, errors.New("AI client not initialized")
+	}
+	return a.ai.AnalyzeParagraph(a.ctx, text)
+}
+
+// CompleteWord returns suggestions to complete a partial word.
+func (a *App) CompleteWord(partialWord string, precedingText string) ([]string, error) {
+	if a.ai == nil {
+		return nil, errors.New("AI client not initialized")
+	}
+	return a.ai.CompleteWord(a.ctx, partialWord, precedingText)
+}
+
+// CompleteParagraph returns a suggested continuation sentence.
+func (a *App) CompleteParagraph(precedingText string) (string, error) {
+	if a.ai == nil {
+		return "", errors.New("AI client not initialized")
+	}
+	return a.ai.CompleteParagraph(a.ctx, precedingText)
 }
 
 // LoadDraft returns the locally saved Step 1 draft, if one exists.
