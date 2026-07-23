@@ -16,7 +16,9 @@
     AnalyzeParagraph,
     CompleteWord,
     CompleteParagraph,
-    HasAnyAPIKey
+    HasAnyAPIKey,
+    CanIllustrate,
+    GetIllustration
   } from '../wailsjs/go/main/App'
   import { logDebug, logError, logInfo } from './logger'
   import { EventsOn } from '../wailsjs/runtime/runtime'
@@ -410,33 +412,60 @@
     })()
   }
 
-  // --- Paragraph Analysis ---
+  // --- Illustration Analysis (conservative: lazy + debounced + rate-limited) ---
 
-  async function onParagraphCompleted(paragraph: string) {
-    logInfo('Paragraph completed', { paragraph })
+  let pendingIllustrationParagraph: string | null = null
+  let illustrationDebounceTimer: ReturnType<typeof setTimeout> | undefined
 
-    // Illustration suggestion
-    if (illustrationOn) {
-      try {
-        analysis = await AnalyzeParagraph(paragraph)
-        logInfo('Paragraph analysis', { analysis })
+  function onParagraphCompleted(paragraph: string) {
+    logDebug('Paragraph completed', { length: paragraph.length })
 
-        if (analysis.wordErrors && editor) {
-          const { from, to } = editor.state.selection
-          const text = editor.state.doc.textBetween(from, to, ' ')
-          analysis.wordErrors.forEach((error: WordErrorType) => {
-            const regex = new RegExp(`\\b${error.incorrect}\\b`, 'gi')
-            let match
-            while ((match = regex.exec(text)) !== null) {
-              const start = from + match.index
-              const end = start + match[0].length
-              editor.chain().setTextSelection({ from: start, to: end }).setWordError({ incorrect: error.incorrect }).run()
-            }
-          })
-        }
-      } catch (error) {
-        logError('Paragraph analysis failed', error)
+    if (!illustrationOn) return
+
+    // Buffer the latest paragraph
+    pendingIllustrationParagraph = paragraph
+
+    // Start or reset the 5-second debounce timer
+    if (illustrationDebounceTimer) window.clearTimeout(illustrationDebounceTimer)
+    illustrationDebounceTimer = window.setTimeout(() => {
+      void flushIllustration()
+    }, 5000)
+  }
+
+  async function flushIllustration() {
+    if (illustrationDebounceTimer) window.clearTimeout(illustrationDebounceTimer)
+
+    const paragraph = pendingIllustrationParagraph
+    if (!paragraph || !illustrationOn) return
+
+    pendingIllustrationParagraph = null
+
+    // Check eligibility (length + cooldown) via the backend
+    try {
+      const eligible = await CanIllustrate(paragraph)
+      if (!eligible) {
+        logDebug('Illustration skipped (not eligible)', { length: paragraph.length })
+        return
       }
+    } catch (error) {
+      logError('Could not check illustration eligibility', error)
+      return
+    }
+
+    // Single lightweight API call for illustration only
+    try {
+      const illustration = await GetIllustration(paragraph)
+      if (illustration) {
+        analysis = {
+          wordErrors: [],
+          theme: '',
+          font: '',
+          illustration
+        }
+        logInfo('Illustration fetched', { illustration: illustration.substring(0, 60) })
+      }
+    } catch (error) {
+      logError('Illustration fetch failed', error)
     }
   }
 

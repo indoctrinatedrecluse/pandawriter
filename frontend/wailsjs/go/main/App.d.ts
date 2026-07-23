@@ -3,9 +3,13 @@ import {main} from '../models';
 
 export function AnalyzeParagraph(arg1:string):Promise<main.Analysis>;
 
+export function CanIllustrate(arg1:string):Promise<boolean>;
+
 export function CompleteParagraph(arg1:string):Promise<string>;
 
 export function CompleteWord(arg1:string,arg2:string):Promise<string[]>;
+
+export function GetIllustration(arg1:string):Promise<string>;
 
 export function HasAnyAPIKey():Promise<boolean>;
 

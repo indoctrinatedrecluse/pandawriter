@@ -15,15 +15,18 @@ import (
 )
 
 const (
-	deepSeekModel            = "deepseek-chat"
+	deepSeekModel             = "deepseek-chat"
 	deepSeekChatCompletionsURL = "https://api.deepseek.com/chat/completions"
-	httpTimeout              = 30 * time.Second
+	httpTimeout               = 30 * time.Second
+	illustrationCooldown      = 30 * time.Second
+	illustrationMinChars      = 100 // minimum paragraph length for illustration analysis
 )
 
 // AI is the client for the DeepSeek API.
 type AI struct {
-	apiKey     string
-	httpClient *http.Client
+	apiKey               string
+	httpClient           *http.Client
+	lastIllustrationTime time.Time // rate-limiting for illustration calls
 }
 
 // Analysis is the result of analyzing a paragraph of text.
@@ -213,6 +216,33 @@ func (a *AI) getFont(ctx context.Context, text string) (string, error) {
 	}
 
 	return font.Font, nil
+}
+
+// CanIllustrate checks whether the given paragraph qualifies for illustration analysis.
+// It enforces minimum length and a rate-limiting cooldown window.
+func (a *AI) CanIllustrate(text string) bool {
+	if a.apiKey == "" {
+		return false
+	}
+	if len(strings.TrimSpace(text)) < illustrationMinChars {
+		return false
+	}
+	if time.Since(a.lastIllustrationTime) < illustrationCooldown {
+		return false
+	}
+	return true
+}
+
+// GetIllustration returns an illustration description for the given text.
+// It performs a single lightweight API call (no theme/font/word-error analysis).
+// The caller should check CanIllustrate first.
+func (a *AI) GetIllustration(ctx context.Context, text string) (string, error) {
+	if a.apiKey == "" {
+		return "", errors.New("AI client not initialized")
+	}
+
+	a.lastIllustrationTime = time.Now()
+	return a.getIllustration(ctx, text)
 }
 
 func (a *AI) getIllustration(ctx context.Context, text string) (string, error) {

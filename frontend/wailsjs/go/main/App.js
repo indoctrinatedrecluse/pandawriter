@@ -5,12 +5,20 @@ export function AnalyzeParagraph(arg1) {
   return window['go']['main']['App']['AnalyzeParagraph'](arg1);
 }
 
+export function CanIllustrate(arg1) {
+  return window['go']['main']['App']['CanIllustrate'](arg1);
+}
+
 export function CompleteParagraph(arg1) {
   return window['go']['main']['App']['CompleteParagraph'](arg1);
 }
 
 export function CompleteWord(arg1, arg2) {
   return window['go']['main']['App']['CompleteWord'](arg1, arg2);
+}
+
+export function GetIllustration(arg1) {
+  return window['go']['main']['App']['GetIllustration'](arg1);
 }
 
 export function HasAnyAPIKey() {

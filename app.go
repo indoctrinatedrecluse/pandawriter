@@ -56,6 +56,25 @@ func (a *App) CompleteWord(partialWord string, precedingText string) ([]string, 
 	return a.ai.CompleteWord(a.ctx, partialWord, precedingText)
 }
 
+// CanIllustrate checks whether the given paragraph qualifies for illustration analysis.
+// Enforces minimum length and rate-limiting cooldown.
+func (a *App) CanIllustrate(text string) bool {
+	if a.ai == nil {
+		return false
+	}
+	return a.ai.CanIllustrate(text)
+}
+
+// GetIllustration returns an illustration description for the given text.
+// Performs a single lightweight API call (no theme/font/word-error analysis).
+// The caller should check CanIllustrate first.
+func (a *App) GetIllustration(text string) (string, error) {
+	if a.ai == nil {
+		return "", errors.New("AI client not initialized")
+	}
+	return a.ai.GetIllustration(a.ctx, text)
+}
+
 // CompleteParagraph returns a suggested continuation sentence.
 func (a *App) CompleteParagraph(precedingText string) (string, error) {
 	if a.ai == nil {
