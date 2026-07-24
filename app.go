@@ -92,6 +92,14 @@ func (a *App) CompleteParagraph(precedingText string) (string, error) {
 	return a.ai.CompleteParagraph(a.ctx, precedingText)
 }
 
+// CompleteFullParagraph returns a full paragraph continuation.
+func (a *App) CompleteFullParagraph(precedingText string) (string, error) {
+	if a.ai == nil {
+		return "", errors.New("AI client not initialized")
+	}
+	return a.ai.CompleteFullParagraph(a.ctx, precedingText)
+}
+
 // LoadDraft returns the locally saved Step 1 draft, if one exists.
 func (a *App) LoadDraft() (Draft, error) {
 	return a.drafts.Load()

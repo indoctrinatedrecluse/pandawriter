@@ -10,6 +10,10 @@ export function CanIllustrate(arg1) {
   return window['go']['main']['App']['CanIllustrate'](arg1);
 }
 
+export function CompleteFullParagraph(arg1) {
+  return window['go']['main']['App']['CompleteFullParagraph'](arg1);
+}
+
 export function CompleteParagraph(arg1) {
   return window['go']['main']['App']['CompleteParagraph'](arg1);
 }

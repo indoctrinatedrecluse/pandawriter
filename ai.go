@@ -175,6 +175,28 @@ func (a *AI) CompleteParagraph(ctx context.Context, precedingText string) (strin
 	return suggestion.Continuation, nil
 }
 
+// CompleteFullParagraph returns a full paragraph continuation based on preceding text.
+func (a *AI) CompleteFullParagraph(ctx context.Context, precedingText string) (string, error) {
+	if a.apiKey == "" {
+		return "", errors.New("AI client not initialized")
+	}
+
+	resp, err := a.createChatCompletion(ctx, fullParagraphAutocompletePrompt, precedingText)
+	if err != nil {
+		return "", err
+	}
+
+	var suggestion struct {
+		Continuation string `json:"continuation"`
+	}
+	err = json.Unmarshal([]byte(resp), &suggestion)
+	if err != nil {
+		return "", err
+	}
+
+	return suggestion.Continuation, nil
+}
+
 func (a *AI) getWordErrors(ctx context.Context, text string) ([]WordError, error) {
 	resp, err := a.createChatCompletion(ctx, wordErrorPrompt, text)
 	if err != nil {

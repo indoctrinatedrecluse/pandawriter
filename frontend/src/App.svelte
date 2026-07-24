@@ -17,6 +17,7 @@
     AnalyzeParagraph,
     CompleteWord,
     CompleteParagraph,
+    CompleteFullParagraph,
     HasAnyAPIKey,
     HasUnsplashAPIKey,
     CanIllustrate,
@@ -109,6 +110,7 @@
   let hasUnsplashKey = false
   let wordAutocompleteOn = false
   let paragraphAutocompleteOn = false
+  let fullParagraphAutocompleteOn = false
   let illustrationOn = false
   let autocompleteDebounceTimer: ReturnType<typeof setTimeout> | undefined
   let autocompleteLastCall = 0
@@ -361,6 +363,7 @@
     wordAutocompleteOn = !wordAutocompleteOn
     if (wordAutocompleteOn) {
       paragraphAutocompleteOn = false
+      fullParagraphAutocompleteOn = false
       dismissSuggestions()
     }
     logInfo('Word autocomplete', { enabled: wordAutocompleteOn })
@@ -370,9 +373,20 @@
     paragraphAutocompleteOn = !paragraphAutocompleteOn
     if (paragraphAutocompleteOn) {
       wordAutocompleteOn = false
+      fullParagraphAutocompleteOn = false
       dismissSuggestions()
     }
-    logInfo('Paragraph autocomplete', { enabled: paragraphAutocompleteOn })
+    logInfo('Sentence autocomplete', { enabled: paragraphAutocompleteOn })
+  }
+
+  function toggleFullParagraphAutocomplete() {
+    fullParagraphAutocompleteOn = !fullParagraphAutocompleteOn
+    if (fullParagraphAutocompleteOn) {
+      wordAutocompleteOn = false
+      paragraphAutocompleteOn = false
+      dismissSuggestions()
+    }
+    logInfo('Full paragraph autocomplete', { enabled: fullParagraphAutocompleteOn })
   }
 
   function toggleIllustration() {
@@ -475,7 +489,50 @@
           editor.chain().focus().insertContent(' ' + continuation).run()
         }
       } catch (error) {
-        logError('Paragraph autocomplete failed', error)
+        logError('Sentence autocomplete failed', error)
+      }
+    })()
+  }
+
+  function triggerFullParagraphAutocomplete() {
+    if (!editor || !fullParagraphAutocompleteOn) return
+
+    const { state } = editor
+    const { selection } = state
+    const { $from } = selection
+
+    // Gather up to 3 preceding paragraphs, or 50 sentences, whichever is shorter
+    const doc = state.doc
+    const currentPos = $from.pos
+    let contextStart = 0
+
+    // Walk backwards from cursor, counting paragraphs and sentences
+    let paragraphCount = 0
+    let sentenceCount = 0
+    doc.nodesBetween(0, currentPos, (node, pos) => {
+      if (node.type.name === 'paragraph' && pos < currentPos) {
+        paragraphCount++
+        const text = node.textContent
+        // Count sentences via regex
+        const sentences = text.match(/[^.!?]+[.!?]+/g)
+        if (sentences) sentenceCount += sentences.length
+        if (paragraphCount === 1) contextStart = pos // start of first paragraph
+      }
+      if (paragraphCount > 3 || sentenceCount > 50) return false
+    })
+
+    // Collect the relevant text
+    const contextText = doc.textBetween(contextStart, currentPos, '\n').trim()
+    if (!contextText) return
+
+    void (async () => {
+      try {
+        const continuation = await CompleteFullParagraph(contextText)
+        if (continuation) {
+          editor.chain().focus().insertContent('\n' + continuation).run()
+        }
+      } catch (error) {
+        logError('Full paragraph autocomplete failed', error)
       }
     })()
   }
@@ -621,6 +678,11 @@
         acceptSuggestion(suggestionsPopup.words[0])
         return
       }
+      if (event.ctrlKey && event.key === 'Enter') {
+        event.preventDefault()
+        triggerFullParagraphAutocomplete()
+        return
+      }
       if (event.ctrlKey && event.key === ' ') {
         event.preventDefault()
         triggerParagraphAutocomplete()
@@ -673,6 +735,9 @@
       <button type="button" class="toggle-pill" class:active={paragraphAutocompleteOn} onclick={toggleParagraphAutocomplete} title="Ctrl+Space to complete a sentence">
         <span class="pill-track"></span><span class="pill-text">Sentence</span>
       </button>
+      <button type="button" class="toggle-pill" class:active={fullParagraphAutocompleteOn} onclick={toggleFullParagraphAutocomplete} title="Ctrl+Enter to complete a full paragraph">
+        <span class="pill-track"></span><span class="pill-text">Paragraph</span>
+      </button>
       {#if hasUnsplashKey}
         <button type="button" class="toggle-pill" class:active={illustrationOn} onclick={toggleIllustration} title="Analyze finished paragraphs for themes & illustrations">
           <span class="pill-track"></span><span class="pill-text">Illustration</span>
@@ -684,6 +749,9 @@
       {/if}
       {#if paragraphAutocompleteOn}
         <span class="toggle-hint">Ctrl+Space to autocomplete</span>
+      {/if}
+      {#if fullParagraphAutocompleteOn}
+        <span class="toggle-hint">Ctrl+Enter to autocomplete</span>
       {/if}
     </nav>
   {/if}
@@ -765,7 +833,11 @@
           <button type="button" aria-label="Redo" onclick={() => command((instance) => instance.chain().focus().redo().run())}>↷</button>
           {#if paragraphAutocompleteOn}
             <span class="toolbar-divider"></span>
-            <button type="button" aria-label="Paragraph autocomplete (Ctrl+Space)" onclick={triggerParagraphAutocomplete} title="Complete sentence (Ctrl+Space)">✦</button>
+            <button type="button" aria-label="Sentence autocomplete (Ctrl+Space)" onclick={triggerParagraphAutocomplete} title="Complete sentence (Ctrl+Space)">✦</button>
+          {/if}
+          {#if fullParagraphAutocompleteOn}
+            <span class="toolbar-divider"></span>
+            <button type="button" aria-label="Paragraph autocomplete (Ctrl+Enter)" onclick={triggerFullParagraphAutocomplete} title="Complete paragraph (Ctrl+Enter)">¶</button>
           {/if}
         </div>
       </div>

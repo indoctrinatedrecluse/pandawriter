@@ -14,4 +14,6 @@ const (
 	wordAutocompletePrompt = `The writer is currently typing and has started the word "%s". Based on the surrounding text, suggest 3 to 5 complete words that could be what the writer intends. Consider context, mood, and literary quality. Please format your response as a JSON object with a "words" key containing an array of strings. Return only plausible, complete words — not phrases.`
 
 	paragraphAutocompletePrompt = `The following is text from a story that ends mid-thought. Please suggest a natural continuation — a single sentence (or at most two short sentences) that flows smoothly from where the writer left off. Match the tone, style, and voice of the existing text. Please format your response as a JSON object with a "continuation" key containing the suggested sentence. Do not repeat the existing text.`
+
+	fullParagraphAutocompletePrompt = `The following is text from a story ending mid-thought. Based on the tone, style, and narrative direction, write a complete new paragraph that continues the story naturally. Match the existing voice and pacing. The paragraph should be 3-6 sentences. Please format your response as a JSON object with a "continuation" key containing the full paragraph. Do not repeat the existing text.`
 )
