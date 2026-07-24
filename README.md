@@ -13,7 +13,7 @@ The first proof of concept will prove four things:
 3. The app can present a matching illustration/background suggestion without interrupting writing.
 4. A DeepSeek API key can be configured in-app and stored securely in Windows Credential Manager.
 
-Publishing to Blogger, image generation, and a searchable story library are intentionally deferred until this workflow is reliable.
+Publishing to Blogger and a searchable story library are intentionally deferred until this POC workflow is reliable.
 
 ## Stack
 
@@ -37,7 +37,7 @@ Svelte + TipTap UI
 Go application service ──► Windows Credential Manager
         │
         ├──► local JSON story files
-        └──► DeepSeek API ──► scene metadata ──► illustration provider (later)
+        └──► DeepSeek API ──► Unsplash keyword search ──► Unsplash API ──► photos
 ```
 
 The API key is accepted only through the Settings UI. Go stores it under the `pandawriter` service in Windows Credential Manager; the frontend only receives a configured/not-configured status.
@@ -105,8 +105,12 @@ The resulting executable is written to `build/bin/`. This directory is intention
 
 ## Status
 
-Step 1 is complete: the local writing room provides a TipTap editor, appearance controls, automatic local draft saving, and draft restoration on the next launch. The draft is saved under the current user's OS application-data directory, outside the repository.
+**Step 1** is complete: the local writing room provides a TipTap editor, appearance controls, automatic local draft saving, and draft restoration on the next launch. The draft is saved under the current user's OS application-data directory, outside the repository.
 
-Step 2 is complete: the editor detects finished paragraphs (Enter at end of a paragraph) and, when enabled, requests structured scene analysis from DeepSeek. The analysis returns theme/font suggestions and an illustration description. Word autocomplete (suggests words as you type after 3+ characters) and paragraph autocomplete (Ctrl+Space to complete a sentence) are also available as togglable AI features. A DeepSeek API key can be configured in-app and stored securely in Windows Credential Manager. All AI features are toggled via a sleek on/off menu bar that appears only when an API key is configured.
+**Step 2** is complete: the editor detects finished paragraphs (Enter at end of a paragraph) and, when enabled, requests structured scene analysis from DeepSeek. The analysis returns theme/font suggestions and an illustration description. Word autocomplete (suggests words as you type after 3+ characters) and sentence autocomplete (Ctrl+Space to complete a sentence) are also available as togglable AI features. A DeepSeek API key can be configured in-app and stored securely in Windows Credential Manager. All AI features are toggled via a sleek on/off menu bar that appears only when an API key is configured.
 
-Publishing to Blogger, image generation, and a searchable story library remain deferred.
+**Step 3** is complete: when the Illustration feature is enabled, the editor buffers finished paragraphs and, after a 5-second pause, requests keyword analysis from DeepSeek followed by an Unsplash image search. The resulting scenic photograph is displayed in the side panel without interrupting the writing flow. The user can optionally insert the image inline into the document via a one-click button. The Illustration toggle is gated behind an Unsplash API key and rate-limited to one request per 30 seconds to conserve tokens.
+
+**Step 4** is complete: DeepSeek and Unsplash API keys are accepted only through the Settings UI. Each key is stored under the `pandawriter` service in Windows Credential Manager via `go-keyring`. The frontend only receives a configured/not-configured status; secrets never leave the OS credential store.
+
+Publishing to Blogger and a searchable story library remain deferred.
