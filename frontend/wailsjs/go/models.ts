@@ -52,9 +52,12 @@ export namespace main {
 	}
 	export class Draft {
 	    exists: boolean;
+	    title: string;
 	    content: string;
 	    theme: string;
 	    font: string;
+	    fontSize: string;
+	    spacing: string;
 	    updatedAt: string;
 	
 	    static createFrom(source: any = {}) {
@@ -64,9 +67,12 @@ export namespace main {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.exists = source["exists"];
+	        this.title = source["title"];
 	        this.content = source["content"];
 	        this.theme = source["theme"];
 	        this.font = source["font"];
+	        this.fontSize = source["fontSize"];
+	        this.spacing = source["spacing"];
 	        this.updatedAt = source["updatedAt"];
 	    }
 	}

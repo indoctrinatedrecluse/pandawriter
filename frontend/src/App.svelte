@@ -71,6 +71,26 @@
   let showApiKeyModal = false
   let analysis: Analysis | null = null
 
+  // Random preview rotation
+  let visibleThemes: Theme[] = []
+  let visibleFonts: Font[] = []
+  let rotating = false
+  let rotationTimer: ReturnType<typeof setInterval> | undefined
+
+  function pickRandom<T>(arr: T[], count: number): T[] {
+    const shuffled = [...arr].sort(() => Math.random() - 0.5)
+    return shuffled.slice(0, count)
+  }
+
+  function refreshPreview() {
+    rotating = true
+    setTimeout(() => {
+      visibleThemes = pickRandom(themes, 4)
+      visibleFonts = pickRandom(fonts, 4)
+      rotating = false
+    }, 180)
+  }
+
   // AI feature toggles — only one of word/paragraph autocomplete can be on at a time
   let hasApiKey = false
   let hasUnsplashKey = false
@@ -546,6 +566,11 @@
     logInfo('TipTap editor initialized')
     void restoreDraft()
 
+    // Initialize preview rotation
+    visibleThemes = pickRandom(themes, 4)
+    visibleFonts = pickRandom(fonts, 4)
+    rotationTimer = setInterval(refreshPreview, 5 * 60 * 1000)
+
     EventsOn('menu:file:new', newFile)
     EventsOn('menu:file:open', openFile)
     EventsOn('menu:file:save', saveFile)
@@ -653,9 +678,9 @@
       </div>
 
       <section class="picker-section" aria-labelledby="background-label">
-        <div class="section-heading"><h3 id="background-label">Background</h3><span>{themes.find((item) => item.id === theme)?.name}</span></div>
-        <div class="theme-grid">
-          {#each themes as item}
+        <div class="section-heading"><h3 id="background-label">Background</h3><span>{themes.find((item) => item.id === theme)?.name} · {themes.length} total</span></div>
+        <div class="theme-grid" class:rotating>
+          {#each visibleThemes as item (item.id)}
             <button class:active={theme === item.id} class={`theme-card preview-${item.id}`} type="button" aria-pressed={theme === item.id} onclick={() => selectTheme(item.id)}>
               <span class="theme-swatch"></span>
               <span class="theme-copy"><strong>{item.name}</strong><small>{item.caption}</small></span>
@@ -665,9 +690,9 @@
       </section>
 
       <section class="picker-section" aria-labelledby="font-label">
-        <div class="section-heading"><h3 id="font-label">Type mood</h3><span>{fonts.find((item) => item.id === font)?.name}</span></div>
-        <div class="font-list">
-          {#each fonts as item}
+        <div class="section-heading"><h3 id="font-label">Type mood</h3><span>{fonts.find((item) => item.id === font)?.name} · {fonts.length} total</span></div>
+        <div class="font-list" class:rotating>
+          {#each visibleFonts as item (item.id)}
             <button class:active={font === item.id} class={`font-choice font-preview-${item.id}`} type="button" aria-pressed={font === item.id} onclick={() => selectFont(item.id)}>
               <strong>{item.name}</strong><span>{item.sample}</span>
             </button>
@@ -792,4 +817,10 @@
   .completion-item:hover { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   .completion-dismiss { margin-left: auto; padding: 4px 8px; border: none; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; font-size: 11px; transition: color 0.15s ease; }
   .completion-dismiss:hover { color: var(--ink); }
+
+  .theme-grid.rotating, .font-list.rotating {
+    opacity: 0.5;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+  }
 </style>
