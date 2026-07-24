@@ -5,6 +5,7 @@
   import Placeholder from '@tiptap/extension-placeholder'
   import Link from '@tiptap/extension-link'
   import Underline from '@tiptap/extension-underline'
+  import Image from '@tiptap/extension-image'
   import { TextStyle } from '@tiptap/extension-text-style'
   import Color from '@tiptap/extension-color'
   import {
@@ -492,19 +493,8 @@
     const imageURL = analysis.illustration
     const pos = pendingIllustrationPos
 
-    // Insert an image node right after the paragraph that triggered this illustration
-    editor.chain().focus().insertContentAt(pos, {
-      type: 'paragraph',
-      content: [
-        {
-          type: 'image',
-          attrs: {
-            src: imageURL,
-            alt: 'Scene illustration'
-          }
-        }
-      ]
-    }).run()
+    // Navigate to the position after the paragraph and insert the image
+    editor.chain().focus().setTextSelection(pos).setImage({ src: imageURL, alt: 'Scene illustration' }).run()
 
     logInfo('Illustration inserted into editor', { pos })
   }
@@ -530,6 +520,7 @@
         Placeholder.configure({ placeholder: 'Begin where the story starts…' }),
         Link.configure({ openOnClick: false, autolink: true }),
         Underline,
+        Image,
         TextStyle,
         Color,
         ParagraphHandler.configure({
