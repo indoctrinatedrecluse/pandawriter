@@ -11,12 +11,15 @@ import (
 
 const draftFileName = "step-one-draft.pwr"
 
-// Draft is the full local state required to restore the Step 1 writing room.
+// Draft is the full local state required to restore the writing room.
 type Draft struct {
 	Exists    bool   `json:"exists"`
+	Title     string `json:"title"`
 	Content   string `json:"content"`
 	Theme     string `json:"theme"`
 	Font      string `json:"font"`
+	FontSize  string `json:"fontSize"`
+	Spacing   string `json:"spacing"`
 	UpdatedAt string `json:"updatedAt"`
 }
 
@@ -56,9 +59,12 @@ func (s DraftStore) Save(draft Draft) error {
 		return err
 	}
 
+	draft.Title = strings.TrimSpace(draft.Title)
 	draft.Content = strings.TrimSpace(draft.Content)
 	draft.Theme = strings.TrimSpace(draft.Theme)
 	draft.Font = strings.TrimSpace(draft.Font)
+	draft.FontSize = strings.TrimSpace(draft.FontSize)
+	draft.Spacing = strings.TrimSpace(draft.Spacing)
 	draft.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 	draft.Exists = true
 

@@ -42,9 +42,58 @@ func main() {
 	editMenu.AddText("Undo", keys.CmdOrCtrl("z"), nil) // Native handler
 	editMenu.AddText("Redo", keys.CmdOrCtrl("y"), nil) // Native handler
 	editMenu.AddSeparator()
-	editMenu.AddText("Cut", keys.CmdOrCtrl("x"), nil)    // Native handler
-	editMenu.AddText("Copy", keys.CmdOrCtrl("c"), nil)   // Native handler
+	editMenu.AddText("Cut", keys.CmdOrCtrl("x"), nil)  // Native handler
+	editMenu.AddText("Copy", keys.CmdOrCtrl("c"), nil) // Native handler
 	editMenu.AddText("Paste", keys.CmdOrCtrl("v"), nil) // Native handler
+
+	layoutMenu := appMenu.AddSubmenu("Layout")
+
+	themesMenu := layoutMenu.AddSubmenu("Themes")
+	themeIDs := []string{"midnight", "parchment", "blossom", "studio", "crimson", "seafoam", "ember", "viola", "moss", "frost"}
+	for _, id := range themeIDs {
+		themeID := id
+		themesMenu.AddText(id, nil, func(_ *menu.CallbackData) {
+			runtime.EventsEmit(app.ctx, "menu:layout:theme:"+themeID)
+		})
+	}
+
+	fontsMenu := layoutMenu.AddSubmenu("Fonts")
+	fontIDs := []string{"literary", "editorial", "typewriter", "playfair", "inter", "merriweather", "monoton", "bebas"}
+	for _, id := range fontIDs {
+		fontID := id
+		fontsMenu.AddText(id, nil, func(_ *menu.CallbackData) {
+			runtime.EventsEmit(app.ctx, "menu:layout:font:"+fontID)
+		})
+	}
+
+	layoutMenu.AddSeparator()
+
+	sizeMenu := layoutMenu.AddSubmenu("Font Size")
+	sizes := []struct{ label, value string }{
+		{"Small", "small"},
+		{"Normal", "normal"},
+		{"Large", "large"},
+		{"Huge", "huge"},
+	}
+	for _, s := range sizes {
+		sizeValue := s.value
+		sizeMenu.AddText(s.label, nil, func(_ *menu.CallbackData) {
+			runtime.EventsEmit(app.ctx, "menu:layout:font-size:"+sizeValue)
+		})
+	}
+
+	spacingMenu := layoutMenu.AddSubmenu("Spacing")
+	spacings := []struct{ label, value string }{
+		{"Tight", "tight"},
+		{"Comfortable", "comfortable"},
+		{"Relaxed", "relaxed"},
+	}
+	for _, s := range spacings {
+		spacingValue := s.value
+		spacingMenu.AddText(s.label, nil, func(_ *menu.CallbackData) {
+			runtime.EventsEmit(app.ctx, "menu:layout:spacing:"+spacingValue)
+		})
+	}
 
 	settingsMenu := appMenu.AddSubmenu("Settings")
 	settingsMenu.AddText("Configure API Key...", nil, func(_ *menu.CallbackData) {

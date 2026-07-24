@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"strings"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -141,12 +142,16 @@ func (a *App) SaveFile(path string, draft Draft) error {
 
 // SaveFileAs shows a dialog to save the given draft to a new .pwr file.
 func (a *App) SaveFileAs(draft Draft) (string, error) {
+	defaultName := "story.pwr"
+	if title := strings.TrimSpace(draft.Title); title != "" {
+		defaultName = title + ".pwr"
+	}
 	path, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
 		Title: "Save PandaWriter Draft",
 		Filters: []runtime.FileFilter{
 			{DisplayName: "PandaWriter Drafts (*.pwr)", Pattern: "*.pwr"},
 		},
-		DefaultFilename: "story.pwr",
+		DefaultFilename: defaultName,
 	})
 	if err != nil {
 		return "", err

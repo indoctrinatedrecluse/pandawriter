@@ -33,19 +33,33 @@
     { id: 'midnight', name: 'Midnight ink', caption: 'Quiet and cinematic' },
     { id: 'parchment', name: 'Soft parchment', caption: 'Warm and literary' },
     { id: 'blossom', name: 'Electric bloom', caption: 'Playful and bright' },
-    { id: 'studio', name: 'Studio blue', caption: 'Focused and clean' }
+    { id: 'studio', name: 'Studio blue', caption: 'Focused and clean' },
+    { id: 'crimson', name: 'Crimson study', caption: 'Deep red, scholarly' },
+    { id: 'seafoam', name: 'Sea foam', caption: 'Coastal aqua calm' },
+    { id: 'ember', name: 'Ember glow', caption: 'Warm firelight' },
+    { id: 'viola', name: 'Viola dusk', caption: 'Purple twilight' },
+    { id: 'moss', name: 'Moss garden', caption: 'Earthy woodland' },
+    { id: 'frost', name: 'Frost', caption: 'Icy winter morning' }
   ]
 
   const fonts: Font[] = [
     { id: 'literary', name: 'Literary', sample: 'Cormorant Garamond' },
     { id: 'editorial', name: 'Editorial', sample: 'DM Sans' },
-    { id: 'typewriter', name: 'Typewriter', sample: 'Space Mono' }
+    { id: 'typewriter', name: 'Typewriter', sample: 'Space Mono' },
+    { id: 'playfair', name: 'Playfair', sample: 'Playfair Display' },
+    { id: 'inter', name: 'Inter', sample: 'Inter' },
+    { id: 'merriweather', name: 'Merriweather', sample: 'Merriweather' },
+    { id: 'monoton', name: 'Monoton', sample: 'Monoton' },
+    { id: 'bebas', name: 'Bebas Neue', sample: 'Bebas Neue' }
   ]
 
   let editorElement: HTMLDivElement
   let editor: Editor | null = null
+  let title = 'Untitled story'
   let theme = 'midnight'
   let font = 'literary'
+  let fontSize = 'normal'
+  let spacing = 'comfortable'
   let wordCount = 0
   let isSaved = true
   let isSaving = false
@@ -73,6 +87,29 @@
     <p>The rain had already written its silver sentence across the glass when Mira opened the envelope.</p>
     <p>She read the first line twice, then smiled as if the night had finally remembered her name.</p>
   `
+
+  function buildDraft(): Draft {
+    return {
+      exists: true,
+      title: title,
+      content: editor?.getHTML() ?? '',
+      theme: theme,
+      font: font,
+      fontSize: fontSize,
+      spacing: spacing,
+      updatedAt: ''
+    }
+  }
+
+  function applyDraft(draft: Draft) {
+    if (!editor) return
+    if (draft.content) editor.commands.setContent(draft.content)
+    if (draft.title) title = draft.title
+    if (themes.some((t) => t.id === draft.theme)) theme = draft.theme
+    if (fonts.some((f) => f.id === draft.font)) font = draft.font
+    if (draft.fontSize) fontSize = draft.fontSize
+    if (draft.spacing) spacing = draft.spacing
+  }
 
   function updateStats() {
     if (!editor) return
@@ -106,13 +143,7 @@
       logDebug('Auto-saving local draft', { version: versionBeingSaved })
 
       try {
-        await SaveDraft({
-          exists: true,
-          content: editor.getHTML(),
-          theme,
-          font,
-          updatedAt: ''
-        })
+        await SaveDraft(buildDraft())
         isSaved = versionBeingSaved === contentVersion
         if (!isSaved) queueAutoSave()
         logDebug('Local draft auto-saved', { version: versionBeingSaved })
@@ -129,9 +160,12 @@
   function newFile() {
     if (!editor) return
     logInfo('Creating new file')
+    title = 'Untitled story'
     editor.commands.setContent(starterContent)
     theme = 'midnight'
     font = 'literary'
+    fontSize = 'normal'
+    spacing = 'comfortable'
     updateWordCount()
     currentPath = null
     isSaved = true
@@ -145,9 +179,7 @@
     try {
       const [draft, path] = await OpenFile()
       if (path && editor) {
-        editor.commands.setContent(draft.content)
-        if (themes.some((item) => item.id === draft.theme)) theme = draft.theme
-        if (fonts.some((item) => item.id === draft.font)) font = draft.font
+        applyDraft(draft)
         updateWordCount()
         currentPath = path
         isSaved = true
@@ -169,13 +201,7 @@
       saveError = ''
       logDebug('Saving file', { path: currentPath })
       try {
-        await SaveFile(currentPath, {
-          exists: true,
-          content: editor.getHTML(),
-          theme,
-          font,
-          updatedAt: new Date().toISOString()
-        })
+        await SaveFile(currentPath, buildDraft())
         isSaved = true
         logDebug('File saved', { path: currentPath })
       } catch (error) {
@@ -196,13 +222,7 @@
     saveError = ''
     logDebug('Saving file as...')
     try {
-      const path = await SaveFileAs({
-        exists: true,
-        content: editor.getHTML(),
-        theme,
-        font,
-        updatedAt: new Date().toISOString()
-      })
+      const path = await SaveFileAs(buildDraft())
       if (path) {
         currentPath = path
         isSaved = true
@@ -229,6 +249,18 @@
     markChanged()
   }
 
+  function selectFontSize(nextFontSize: string) {
+    if (fontSize === nextFontSize) return
+    fontSize = nextFontSize
+    markChanged()
+  }
+
+  function selectSpacing(nextSpacing: string) {
+    if (spacing === nextSpacing) return
+    spacing = nextSpacing
+    markChanged()
+  }
+
   function updateWordCount() {
     if (!editor) return
     const text = editor.getText().trim()
@@ -242,9 +274,7 @@
     try {
       const draft = await LoadDraft()
       if (draft.exists) {
-        if (draft.content) editor.commands.setContent(draft.content)
-        if (themes.some((item) => item.id === draft.theme)) theme = draft.theme
-        if (fonts.some((item) => item.id === draft.font)) font = draft.font
+        applyDraft(draft)
       }
       updateWordCount()
       logInfo(draft.exists ? 'Local draft restored' : 'No local draft found')
@@ -328,17 +358,13 @@
     const { selection } = state
     const { $from } = selection
 
-    // Only autocomplete within paragraph nodes
     if ($from.parent.type.name !== 'paragraph') {
       dismissSuggestions()
       return
     }
 
-    // Get the partial word before the cursor
     const nodeText = $from.parent.textContent
     const cursorPos = $from.parentOffset
-
-    // Extract the word currently being typed (between last space and cursor)
     const textBeforeCursor = nodeText.substring(0, cursorPos)
     const lastSpaceIndex = textBeforeCursor.lastIndexOf(' ')
     const partialWord = textBeforeCursor.substring(lastSpaceIndex + 1)
@@ -348,7 +374,6 @@
       return
     }
 
-    // Throttle API calls — at least 800ms between calls
     const now = Date.now()
     if (now - autocompleteLastCall < 800) {
       return
@@ -356,7 +381,6 @@
 
     if (autocompleteDebounceTimer) window.clearTimeout(autocompleteDebounceTimer)
     autocompleteDebounceTimer = window.setTimeout(async () => {
-      // Re-check word is still valid
       const currentText = editor.getText()
       const textBefore = currentText.substring(0, editor.state.selection.$from.pos - 1)
       const lastSpace = textBefore.lastIndexOf(' ')
@@ -366,9 +390,7 @@
         return
       }
 
-      // Get context: current paragraph text up to the cursor
       const paragraphText = $from.parent.textContent.substring(0, cursorPos)
-
       autocompleteLastCall = Date.now()
       try {
         const words = await CompleteWord(word, paragraphText)
@@ -390,14 +412,12 @@
     const { selection } = state
     const { $from } = selection
 
-    // Find the start of the partial word
     const nodeText = $from.parent.textContent
     const cursorPos = $from.parentOffset
     const textBeforeCursor = nodeText.substring(0, cursorPos)
     const lastSpaceIndex = textBeforeCursor.lastIndexOf(' ')
     const partialWord = textBeforeCursor.substring(lastSpaceIndex + 1)
 
-    // Delete the partial word and insert the full word
     const from = $from.pos - partialWord.length
     const to = $from.pos
 
@@ -408,18 +428,15 @@
   function triggerParagraphAutocomplete() {
     if (!editor || !paragraphAutocompleteOn) return
 
-    // Get the text up to the cursor from the current paragraph
     const { state } = editor
     const { selection } = state
     const { $from } = selection
-
     const paragraphText = $from.parent.textContent
 
     void (async () => {
       try {
         const continuation = await CompleteParagraph(paragraphText)
         if (continuation) {
-          // Insert the continuation at the cursor
           editor.chain().focus().insertContent(' ' + continuation).run()
         }
       } catch (error) {
@@ -428,7 +445,7 @@
     })()
   }
 
-  // --- Illustration Analysis (conservative: lazy + debounced + rate-limited) ---
+  // --- Illustration Analysis ---
 
   let pendingIllustrationParagraph: string | null = null
   let pendingIllustrationPos: number = 0
@@ -436,29 +453,19 @@
 
   function onParagraphCompleted(detail: ParagraphCompletedDetail) {
     logDebug('Paragraph completed', { length: detail.paragraph.length })
-
     if (!illustrationOn) return
-
-    // Buffer the latest paragraph and its position
     pendingIllustrationParagraph = detail.paragraph
     pendingIllustrationPos = detail.afterPos
-
-    // Start or reset the 5-second debounce timer
     if (illustrationDebounceTimer) window.clearTimeout(illustrationDebounceTimer)
-    illustrationDebounceTimer = window.setTimeout(() => {
-      void flushIllustration()
-    }, 5000)
+    illustrationDebounceTimer = window.setTimeout(() => { void flushIllustration() }, 5000)
   }
 
   async function flushIllustration() {
     if (illustrationDebounceTimer) window.clearTimeout(illustrationDebounceTimer)
-
     const paragraph = pendingIllustrationParagraph
     if (!paragraph || !illustrationOn) return
-
     pendingIllustrationParagraph = null
 
-    // Check eligibility (length + cooldown) via the backend
     try {
       const eligible = await CanIllustrate(paragraph)
       if (!eligible) {
@@ -470,16 +477,10 @@
       return
     }
 
-    // Single lightweight API call for illustration only
     try {
       const illustration = await GetIllustration(paragraph)
       if (illustration) {
-        analysis = {
-          wordErrors: [],
-          theme: '',
-          font: '',
-          illustration
-        }
+        analysis = { wordErrors: [], theme: '', font: '', illustration }
         logInfo('Illustration fetched', { illustration: illustration.substring(0, 60) })
       }
     } catch (error) {
@@ -489,21 +490,32 @@
 
   function insertImageIntoEditor() {
     if (!editor || !analysis?.illustration) return
-
     const imageURL = analysis.illustration
     const pos = pendingIllustrationPos
-
-    // Navigate to the position after the paragraph and insert the image
     editor.chain().focus().setTextSelection(pos).setImage({ src: imageURL, alt: 'Scene illustration' }).run()
-
     logInfo('Illustration inserted into editor', { pos })
   }
 
+  // --- Layout menu event handlers ---
+
+  function onLayoutThemeEvent(themeID: string) {
+    if (themes.some((t) => t.id === themeID)) {
+      selectTheme(themeID)
+      logInfo('Layout menu: theme', { themeID })
+    }
+  }
+
+  function onLayoutFontEvent(fontID: string) {
+    if (fonts.some((f) => f.id === fontID)) {
+      selectFont(fontID)
+      logInfo('Layout menu: font', { fontID })
+    }
+  }
+
   onMount(async () => {
-    // Check API key status
     try {
       hasApiKey = await HasAnyAPIKey()
-      hasUnsplashKey = await HasUnsplashAPIKey()
+      hasUnsplashKey = hasApiKey && await HasUnsplashAPIKey()
       logInfo('API key status', { hasApiKey, hasUnsplashKey })
     } catch {
       hasApiKey = false
@@ -513,30 +525,20 @@
     editor = new Editor({
       element: editorElement,
       extensions: [
-        StarterKit.configure({
-          heading: { levels: [1, 2, 3] },
-          link: false
-        }),
+        StarterKit.configure({ heading: { levels: [1, 2, 3] }, link: false }),
         Placeholder.configure({ placeholder: 'Begin where the story starts…' }),
         Link.configure({ openOnClick: false, autolink: true }),
         Underline,
         Image,
         TextStyle,
         Color,
-        ParagraphHandler.configure({
-          onParagraphCompleted
-        }),
+        ParagraphHandler.configure({ onParagraphCompleted }),
         WordError
       ],
       content: starterContent,
       editorProps: {
-        attributes: {
-          class: 'story-prose'
-        },
-        handleKeyUp: () => {
-          onEditorKeyUp()
-          return false
-        }
+        attributes: { class: 'story-prose' },
+        handleKeyUp: () => { onEditorKeyUp(); return false }
       },
       onUpdate: updateStats
     })
@@ -548,17 +550,32 @@
     EventsOn('menu:file:open', openFile)
     EventsOn('menu:file:save', saveFile)
     EventsOn('menu:file:save-as', saveFileAs)
-    EventsOn('menu:settings:configure-api-key', () => {
-      showApiKeyModal = true
+    EventsOn('menu:settings:configure-api-key', () => { showApiKeyModal = true })
+
+    // Layout menu events
+    const themeIDs = themes.map((t) => t.id)
+    for (const id of themeIDs) {
+      EventsOn(`menu:layout:theme:${id}`, () => onLayoutThemeEvent(id))
+    }
+    const fontIDs = fonts.map((f) => f.id)
+    for (const id of fontIDs) {
+      EventsOn(`menu:layout:font:${id}`, () => onLayoutFontEvent(id))
+    }
+
+    const sizeValues = ['small', 'normal', 'large', 'huge']
+    for (const size of sizeValues) {
+      EventsOn(`menu:layout:font-size:${size}`, () => selectFontSize(size))
+    }
+
+    const spacingValues = ['tight', 'comfortable', 'relaxed']
+    for (const spacingVal of spacingValues) {
+      EventsOn(`menu:layout:spacing:${spacingVal}`, () => selectSpacing(spacingVal))
+    }
+
+    window.addEventListener('beforeunload', () => {
+      if (!isSaved && !currentPath) { autoSaveLocalDraft() }
     })
 
-    window.addEventListener('beforeunload', (event) => {
-      if (!isSaved && !currentPath) {
-        autoSaveLocalDraft()
-      }
-    })
-
-    // Keyboard shortcut for paragraph autocomplete: Ctrl+Space
     window.addEventListener('keydown', (event) => {
       if (event.ctrlKey && event.key === ' ') {
         event.preventDefault()
@@ -575,24 +592,22 @@
 
   $: statusText = saveError
     ? saveError
-    : isSaving
-      ? currentPath ? 'Saving...' : 'Saving locally...'
-      : isSaved
-        ? currentPath ? 'Saved' : 'Saved locally'
-        : 'Unsaved changes'
+    : isSaving ? (currentPath ? 'Saving...' : 'Saving locally...')
+    : isSaved ? (currentPath ? 'Saved' : 'Saved locally')
+    : 'Unsaved changes'
 </script>
 
 <svelte:head>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Playfair+Display:ital,wght@0,400;0,700;1,500&family=Inter:opsz,wght@14..32,400;14..32,600;14..32,700&family=Merriweather:wght@0,400;0,700;1,400&family=Monoton&family=Bebas+Neue&display=swap" rel="stylesheet" />
 </svelte:head>
 
 {#if showApiKeyModal}
   <ApiKeyModal on:close={() => (showApiKeyModal = false)} on:keyschanged={refreshApiKeyStatus} />
 {/if}
 
-<main class={`app-shell theme-${theme} font-${font}`}>
+<main class={`app-shell theme-${theme} font-${font} font-size-${fontSize} spacing-${spacing}`}>
   <header class="topbar">
     <div class="brand" aria-label="PandaWriter">
       <span class="brand-mark">P</span>
@@ -605,50 +620,22 @@
     <button class="publish-button" type="button" disabled title="Publishing is planned for a later POC phase">Publish</button>
   </header>
 
-  <!-- AI Feature Toggle Menu — only visible when API key is configured -->
   {#if hasApiKey}
     <nav class="ai-toggle-bar" aria-label="AI features">
       <span class="toggle-label">AI</span>
-      <button
-        type="button"
-        class="toggle-pill"
-        class:active={wordAutocompleteOn}
-        onclick={toggleWordAutocomplete}
-        title="Suggest words as you type"
-      >
-        <span class="pill-track"></span>
-        <span class="pill-text">Word</span>
+      <button type="button" class="toggle-pill" class:active={wordAutocompleteOn} onclick={toggleWordAutocomplete} title="Suggest words as you type">
+        <span class="pill-track"></span><span class="pill-text">Word</span>
       </button>
-      <button
-        type="button"
-        class="toggle-pill"
-        class:active={paragraphAutocompleteOn}
-        onclick={toggleParagraphAutocomplete}
-        title="Ctrl+Space to complete a sentence"
-      >
-        <span class="pill-track"></span>
-        <span class="pill-text">Sentence</span>
+      <button type="button" class="toggle-pill" class:active={paragraphAutocompleteOn} onclick={toggleParagraphAutocomplete} title="Ctrl+Space to complete a sentence">
+        <span class="pill-track"></span><span class="pill-text">Sentence</span>
       </button>
       {#if hasUnsplashKey}
-        <button
-          type="button"
-          class="toggle-pill"
-          class:active={illustrationOn}
-          onclick={toggleIllustration}
-          title="Analyze finished paragraphs for themes & illustrations"
-        >
-          <span class="pill-track"></span>
-          <span class="pill-text">Illustration</span>
+        <button type="button" class="toggle-pill" class:active={illustrationOn} onclick={toggleIllustration} title="Analyze finished paragraphs for themes & illustrations">
+          <span class="pill-track"></span><span class="pill-text">Illustration</span>
         </button>
       {:else}
-        <button
-          type="button"
-          class="toggle-pill disabled-pill"
-          disabled
-          title="Configure an Unsplash access key to enable illustrations"
-        >
-          <span class="pill-track"></span>
-          <span class="pill-text">Illustration</span>
+        <button type="button" class="toggle-pill disabled-pill" disabled title="Configure an Unsplash access key to enable illustrations">
+          <span class="pill-track"></span><span class="pill-text">Illustration</span>
         </button>
       {/if}
       {#if paragraphAutocompleteOn}
@@ -666,19 +653,10 @@
       </div>
 
       <section class="picker-section" aria-labelledby="background-label">
-        <div class="section-heading">
-          <h3 id="background-label">Background</h3>
-          <span>{themes.find((item) => item.id === theme)?.name}</span>
-        </div>
+        <div class="section-heading"><h3 id="background-label">Background</h3><span>{themes.find((item) => item.id === theme)?.name}</span></div>
         <div class="theme-grid">
           {#each themes as item}
-            <button
-              class:active={theme === item.id}
-              class={`theme-card preview-${item.id}`}
-              type="button"
-              aria-pressed={theme === item.id}
-              onclick={() => selectTheme(item.id)}
-            >
+            <button class:active={theme === item.id} class={`theme-card preview-${item.id}`} type="button" aria-pressed={theme === item.id} onclick={() => selectTheme(item.id)}>
               <span class="theme-swatch"></span>
               <span class="theme-copy"><strong>{item.name}</strong><small>{item.caption}</small></span>
             </button>
@@ -687,21 +665,11 @@
       </section>
 
       <section class="picker-section" aria-labelledby="font-label">
-        <div class="section-heading">
-          <h3 id="font-label">Type mood</h3>
-          <span>{fonts.find((item) => item.id === font)?.name}</span>
-        </div>
+        <div class="section-heading"><h3 id="font-label">Type mood</h3><span>{fonts.find((item) => item.id === font)?.name}</span></div>
         <div class="font-list">
           {#each fonts as item}
-            <button
-              class:active={font === item.id}
-              class={`font-choice font-preview-${item.id}`}
-              type="button"
-              aria-pressed={font === item.id}
-              onclick={() => selectFont(item.id)}
-            >
-              <strong>{item.name}</strong>
-              <span>{item.sample}</span>
+            <button class:active={font === item.id} class={`font-choice font-preview-${item.id}`} type="button" aria-pressed={font === item.id} onclick={() => selectFont(item.id)}>
+              <strong>{item.name}</strong><span>{item.sample}</span>
             </button>
           {/each}
         </div>
@@ -709,21 +677,13 @@
 
       {#if analysis}
         <section class="picker-section" aria-labelledby="suggestions-label">
-          <div class="section-heading">
-            <h3 id="suggestions-label">Suggestions</h3>
-          </div>
+          <div class="section-heading"><h3 id="suggestions-label">Suggestions</h3></div>
           <div class="suggestions">
-              {#if analysis.theme}
-              <div class="suggestion">
-                <p>Theme</p>
-                <button class="button" onclick={() => selectTheme(analysis.theme!)}>{analysis.theme}</button>
-              </div>
+            {#if analysis.theme}
+              <div class="suggestion"><p>Theme</p><button class="button" onclick={() => selectTheme(analysis.theme!)}>{analysis.theme}</button></div>
             {/if}
             {#if analysis.font}
-              <div class="suggestion">
-                <p>Font</p>
-                <button class="button" onclick={() => selectFont(analysis.font!)}>{analysis.font}</button>
-              </div>
+              <div class="suggestion"><p>Font</p><button class="button" onclick={() => selectFont(analysis.font!)}>{analysis.font}</button></div>
             {/if}
             {#if analysis.illustration}
               <div class="suggestion">
@@ -733,9 +693,7 @@
                 {:else}
                   <p>{analysis.illustration}</p>
                 {/if}
-                <button class="insert-image-button" onclick={insertImageIntoEditor} title="Insert image into the editor">
-                  ↓ Insert into page
-                </button>
+                <button class="insert-image-button" onclick={insertImageIntoEditor} title="Insert image into the editor">↓ Insert into page</button>
               </div>
             {/if}
           </div>
@@ -768,13 +726,19 @@
         </div>
       </div>
 
-      <!-- Word autocomplete popup -->
+      <input
+        class="title-input"
+        type="text"
+        bind:value={title}
+        placeholder="Untitled story"
+        aria-label="Story title"
+        oninput={markChanged}
+      />
+
       {#if wordAutocompleteOn && suggestionsPopup.visible}
         <div class="autocomplete-popup">
           {#each suggestionsPopup.words as word}
-            <button type="button" class="completion-item" onclick={() => acceptSuggestion(word)}>
-              {word}
-            </button>
+            <button type="button" class="completion-item" onclick={() => acceptSuggestion(word)}>{word}</button>
           {/each}
           <button type="button" class="completion-dismiss" onclick={dismissSuggestions}>× dismiss</button>
         </div>
@@ -788,169 +752,44 @@
 </main>
 
 <style>
-  .suggestions {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-  }
+  .suggestions { display: flex; flex-direction: column; gap: 1rem; }
+  .suggestion { display: flex; flex-direction: column; gap: 0.5rem; }
+  .suggestion p { margin: 0; }
+  .illustration-image { width: 100%; border-radius: 8px; border: 1px solid var(--line); object-fit: cover; max-height: 180px; }
+  .insert-image-button { padding: 6px 12px; border: 1px solid var(--accent); border-radius: 6px; background: transparent; color: var(--accent); cursor: pointer; font-size: 11px; font-weight: 600; transition: all 0.15s ease; }
+  .insert-image-button:hover { background: var(--accent); color: var(--accent-ink); }
 
-  .suggestion {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .suggestion p {
-    margin: 0;
-  }
-
-  .illustration-image {
-    width: 100%;
-    border-radius: 8px;
-    border: 1px solid var(--line);
-    object-fit: cover;
-    max-height: 180px;
-  }
-
-  .insert-image-button {
-    padding: 6px 12px;
-    border: 1px solid var(--accent);
-    border-radius: 6px;
-    background: transparent;
-    color: var(--accent);
-    cursor: pointer;
-    font-size: 11px;
-    font-weight: 600;
-    transition: all 0.15s ease;
-  }
-
-  .insert-image-button:hover {
-    background: var(--accent);
-    color: var(--accent-ink);
-  }
-
-  /* AI Toggle Bar */
-  .ai-toggle-bar {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 32px;
-    background: color-mix(in srgb, var(--surface) 50%, transparent);
-    border-bottom: 1px solid var(--line);
-    font-size: 12px;
-  }
-
-  .toggle-label {
-    font-weight: 700;
-    color: var(--accent);
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    margin-right: 4px;
-    font-size: 11px;
-  }
-
-  .toggle-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    padding: 5px 12px;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    background: var(--control);
-    color: var(--muted);
-    cursor: pointer;
-    transition: all 0.2s ease;
-    font-size: 12px;
-  }
-
-  .toggle-pill:hover {
-    border-color: var(--accent);
-    color: var(--ink);
-  }
-
-  .toggle-pill.active {
-    background: var(--accent);
-    color: var(--accent-ink);
-    border-color: var(--accent);
-  }
-
-  .disabled-pill {
-    opacity: 0.35;
-    cursor: not-allowed;
-  }
-
-  .pill-track {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: currentColor;
-    opacity: 0.3;
-    transition: opacity 0.2s ease;
-    flex-shrink: 0;
-  }
-
-  .toggle-pill.active .pill-track {
-    opacity: 1;
-    background: var(--accent-ink);
-  }
-
-  .pill-text {
-    font-weight: 600;
-  }
-
-  .toggle-hint {
-    margin-left: 12px;
-    color: var(--muted);
-    font-size: 11px;
-    font-style: italic;
-  }
-
-  /* Autocomplete popup */
-  .autocomplete-popup {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+  .title-input {
+    display: block;
     max-width: 825px;
-    margin: 0 auto 8px;
-    padding: 6px 10px;
-    background: var(--surface);
-    border: 1px solid var(--accent);
-    border-radius: 10px;
-    box-shadow: 0 6px 18px rgba(0,0,0,0.12);
-    flex-wrap: wrap;
-  }
-
-  .completion-item {
-    padding: 4px 12px;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    background: var(--control);
+    margin: 0 auto 10px;
+    padding: 10px 16px;
+    font-family: var(--heading-font);
+    font-size: 28px;
+    font-weight: 700;
     color: var(--ink);
-    cursor: pointer;
-    font-size: 13px;
-    font-family: var(--story-font);
-    transition: all 0.15s ease;
-  }
-
-  .completion-item:hover {
-    background: var(--accent);
-    color: var(--accent-ink);
-    border-color: var(--accent);
-  }
-
-  .completion-dismiss {
-    margin-left: auto;
-    padding: 4px 8px;
-    border: none;
-    border-radius: 6px;
     background: transparent;
-    color: var(--muted);
-    cursor: pointer;
-    font-size: 11px;
-    transition: color 0.15s ease;
+    border: none;
+    border-bottom: 2px solid transparent;
+    outline: none;
+    transition: border-color 0.2s ease;
   }
+  .title-input:focus { border-bottom-color: var(--accent); }
+  .title-input::placeholder { color: var(--muted); }
 
-  .completion-dismiss:hover {
-    color: var(--ink);
-  }
+  .ai-toggle-bar { display: flex; align-items: center; gap: 10px; padding: 8px 32px; background: color-mix(in srgb, var(--surface) 50%, transparent); border-bottom: 1px solid var(--line); font-size: 12px; }
+  .toggle-label { font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.1em; margin-right: 4px; font-size: 11px; }
+  .toggle-pill { display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--control); color: var(--muted); cursor: pointer; transition: all 0.2s ease; font-size: 12px; }
+  .toggle-pill:hover { border-color: var(--accent); color: var(--ink); }
+  .toggle-pill.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .disabled-pill { opacity: 0.35; cursor: not-allowed; }
+  .pill-track { width: 10px; height: 10px; border-radius: 50%; background: currentColor; opacity: 0.3; transition: opacity 0.2s ease; flex-shrink: 0; }
+  .toggle-pill.active .pill-track { opacity: 1; background: var(--accent-ink); }
+  .pill-text { font-weight: 600; }
+  .toggle-hint { margin-left: 12px; color: var(--muted); font-size: 11px; font-style: italic; }
+  .autocomplete-popup { display: flex; align-items: center; gap: 6px; max-width: 825px; margin: 0 auto 8px; padding: 6px 10px; background: var(--surface); border: 1px solid var(--accent); border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,0.12); flex-wrap: wrap; }
+  .completion-item { padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--control); color: var(--ink); cursor: pointer; font-size: 13px; font-family: var(--story-font); transition: all 0.15s ease; }
+  .completion-item:hover { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .completion-dismiss { margin-left: auto; padding: 4px 8px; border: none; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; font-size: 11px; transition: color 0.15s ease; }
+  .completion-dismiss:hover { color: var(--ink); }
 </style>
