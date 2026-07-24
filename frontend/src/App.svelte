@@ -85,8 +85,21 @@
   function refreshPreview() {
     rotating = true
     setTimeout(() => {
-      visibleThemes = pickRandom(themes, 4)
-      visibleFonts = pickRandom(fonts, 4)
+      // Find the currently selected theme and font objects
+      const selectedTheme = themes.find((t) => t.id === theme)!
+      const selectedFont = fonts.find((f) => f.id === font)!
+
+      // Pick 3 other random themes (excluding the currently selected one)
+      const otherThemes = themes.filter((t) => t.id !== theme)
+      const randomThemes = pickRandom(otherThemes, 3)
+
+      // Pick 3 other random fonts
+      const otherFonts = fonts.filter((f) => f.id !== font)
+      const randomFonts = pickRandom(otherFonts, 3)
+
+      // Position 1 = selected, positions 2-4 = random others
+      visibleThemes = [selectedTheme, ...randomThemes]
+      visibleFonts = [selectedFont, ...randomFonts]
       rotating = false
     }, 180)
   }
@@ -260,12 +273,14 @@
   function selectTheme(nextTheme: string) {
     if (theme === nextTheme) return
     theme = nextTheme
+    refreshPreview()
     markChanged()
   }
 
   function selectFont(nextFont: string) {
     if (font === nextFont) return
     font = nextFont
+    refreshPreview()
     markChanged()
   }
 
@@ -566,9 +581,8 @@
     logInfo('TipTap editor initialized')
     void restoreDraft()
 
-    // Initialize preview rotation
-    visibleThemes = pickRandom(themes, 4)
-    visibleFonts = pickRandom(fonts, 4)
+    // Initialize preview rotation with selected item at position 1
+    refreshPreview()
     rotationTimer = setInterval(refreshPreview, 5 * 60 * 1000)
 
     EventsOn('menu:file:new', newFile)
@@ -602,6 +616,11 @@
     })
 
     window.addEventListener('keydown', (event) => {
+      if (event.key === 'Tab' && suggestionsPopup.visible) {
+        event.preventDefault()
+        acceptSuggestion(suggestionsPopup.words[0])
+        return
+      }
       if (event.ctrlKey && event.key === ' ') {
         event.preventDefault()
         triggerParagraphAutocomplete()
